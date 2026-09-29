@@ -30,13 +30,6 @@ export function IconSettings({ size = 16, className }: IconProps) {
   );
 }
 
-export function IconCheck({ size = 16, className }: IconProps) {
-  return base(
-    <path d="M5 12l5 5l10-10" />,
-    size, className
-  );
-}
-
 export function IconPencil({ size = 16, className }: IconProps) {
   return base(
     <>

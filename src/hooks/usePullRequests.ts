@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { getPullRequests, onPollError, onPrsUpdated, refreshPullRequests } from "../api";
 import type { PullRequest } from "../types";
 
 export function usePullRequests() {
@@ -10,26 +9,23 @@ export function usePullRequests() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   useEffect(() => {
-    invoke<PullRequest[]>("get_pull_requests")
+    getPullRequests()
       .then((data) => {
         setPrs(data);
-        setLoading(false);
         setLastFetched(new Date());
       })
-      .catch((e) => {
-        setError(String(e));
-        setLoading(false);
-      });
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
 
-    const unlistenPrs = listen<PullRequest[]>("prs-updated", (event) => {
-      setPrs(event.payload);
+    const unlistenPrs = onPrsUpdated((data) => {
+      setPrs(data);
       setError(null);
       setLoading(false);
       setLastFetched(new Date());
     });
 
-    const unlistenErr = listen<string>("poll-error", (event) => {
-      setError(event.payload);
+    const unlistenErr = onPollError((message) => {
+      setError(message);
       setLoading(false);
     });
 
@@ -41,7 +37,7 @@ export function usePullRequests() {
 
   function refresh() {
     setLoading(true);
-    invoke("refresh_pull_requests").catch(console.error);
+    refreshPullRequests().catch(console.error);
   }
 
   return { prs, loading, error, lastFetched, refresh };

@@ -8,7 +8,7 @@ interface Props {
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
+  const mins = Math.max(0, Math.floor(diff / 60000));
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -23,7 +23,7 @@ export function PrItem({ pr }: Props) {
 
   return (
     <button
-      className={`pr-item${pr.approved ? " pr-item--approved" : ""}${pr.draft ? " pr-item--draft" : ""}`}
+      className={`pr-item${pr.draft ? " pr-item--draft" : ""}`}
       onClick={handleClick}
     >
       <div className="pr-item-avatar">
@@ -41,7 +41,7 @@ export function PrItem({ pr }: Props) {
           {pr.title}
         </div>
         <div className="pr-item-meta">
-          <span className="pr-item-repo">{pr.repo_slug}</span>
+          <span className="pr-item-repo">{pr.repo}</span>
           <span className="pr-item-branches">
             {pr.source_branch} → {pr.destination_branch}
           </span>
@@ -54,9 +54,6 @@ export function PrItem({ pr }: Props) {
               <span className="pr-item-comments">
                 <IconMessage size={13} /> {pr.comment_count}
               </span>
-            )}
-            {pr.approved && (
-              <span className="pr-item-approved" title="Aprobada">✓</span>
             )}
           </div>
         </div>

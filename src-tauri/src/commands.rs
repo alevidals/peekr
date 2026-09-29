@@ -1,138 +1,188 @@
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
-    bitbucket::{self, RepoInfo},
-    credentials::{self, Config},
-    state::PrState,
+    config::{self, Account, AppConfig},
+    domain::{ProviderKind, PullRequest},
+    error::{AppError, AppResult},
+    provider, secrets,
+    state::{ConfigStore, PollTrigger, PrState},
 };
 
-#[derive(serde::Serialize)]
-pub struct ConfigResponse {
+#[derive(Serialize)]
+pub struct AccountResponse {
+    pub id: String,
+    pub kind: ProviderKind,
     pub workspace: String,
     pub repos: Vec<String>,
-    pub polling_interval_secs: u64,
     pub has_token: bool,
 }
 
+#[derive(Serialize)]
+pub struct ConfigResponse {
+    pub polling_interval_secs: u64,
+    pub accounts: Vec<AccountResponse>,
+}
+
+/// An account as edited in the settings window.
+#[derive(Deserialize)]
+pub struct AccountInput {
+    /// `None` for accounts that have just been added.
+    pub id: Option<String>,
+    pub kind: ProviderKind,
+    pub workspace: String,
+    pub repos: Vec<String>,
+    /// Empty/absent keeps the stored token.
+    pub token: Option<String>,
+}
+
 #[tauri::command]
-pub async fn get_config(app: AppHandle) -> Result<Option<ConfigResponse>, String> {
-    match credentials::load_config(&app)? {
-        Some(c) => Ok(Some(ConfigResponse {
-            has_token: !c.token.is_empty(),
-            workspace: c.workspace,
-            repos: c.repos,
-            polling_interval_secs: c.polling_interval_secs,
-        })),
-        None => Ok(None),
+pub fn get_config(store: State<'_, ConfigStore>) -> ConfigResponse {
+    let snapshot = store.snapshot();
+    ConfigResponse {
+        polling_interval_secs: snapshot.config.polling_interval_secs,
+        accounts: snapshot
+            .config
+            .accounts
+            .into_iter()
+            .map(|a| AccountResponse {
+                has_token: snapshot.tokens.contains_key(&a.id),
+                id: a.id,
+                kind: a.kind,
+                workspace: a.workspace,
+                repos: a.repos,
+            })
+            .collect(),
     }
 }
 
 #[tauri::command]
-pub async fn save_credentials(
+pub async fn save_config(
     app: AppHandle,
-    workspace: String,
-    token: String,
-    repos: Vec<String>,
-    polling_interval_secs: Option<u64>,
-) -> Result<(), String> {
-    log::info!("[save_credentials] token_len={} workspace={} repos={}", token.len(), workspace, repos.len());
-    // If the caller sent an empty token, keep whatever is already stored.
-    let resolved_token = if token.is_empty() {
-        credentials::load_config(&app)?
-            .map(|c| c.token)
-            .unwrap_or_default()
-    } else {
-        token
-    };
-    log::info!("[save_credentials] resolved_token_len={}", resolved_token.len());
-    let config = Config {
-        workspace,
-        token: resolved_token,
-        repos,
-        polling_interval_secs: polling_interval_secs.unwrap_or(120),
-    };
-    credentials::save_config(&app, &config)?;
+    store: State<'_, ConfigStore>,
+    trigger: State<'_, PollTrigger>,
+    polling_interval_secs: u64,
+    accounts: Vec<AccountInput>,
+) -> AppResult<()> {
+    let previous = store.snapshot();
+    let mut new_accounts = Vec::with_capacity(accounts.len());
+    let mut new_tokens = HashMap::new();
 
-    Ok(())
-}
+    for input in accounts {
+        // Only reuse ids we know about; anything else is treated as a new account.
+        let id = input
+            .id
+            .filter(|id| previous.config.accounts.iter().any(|a| &a.id == id))
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-#[tauri::command]
-pub async fn hide_settings_window(app: AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("settings") {
-        win.hide().map_err(|e| e.to_string())?;
+        let account = Account {
+            id: id.clone(),
+            kind: input.kind,
+            workspace: input.workspace.trim().to_string(),
+            repos: config::clean_repos(input.repos),
+        };
+        config::validate_account(&account)?;
+
+        let token = match input.token.filter(|t| !t.is_empty()) {
+            Some(token) => {
+                secrets::set_token(&id, &token)?;
+                Some(token)
+            }
+            None => previous.tokens.get(&id).cloned(),
+        };
+        if let Some(token) = token {
+            new_tokens.insert(id, token);
+        }
+        new_accounts.push(account);
     }
-    Ok(())
+
+    for old in &previous.config.accounts {
+        if !new_accounts.iter().any(|a| a.id == old.id) {
+            secrets::delete_token(&old.id);
+        }
+    }
+
+    let new_config = AppConfig {
+        polling_interval_secs: config::clamp_interval(polling_interval_secs),
+        accounts: new_accounts,
+        ..AppConfig::default()
+    };
+    config::save(&app, &new_config)?;
+    store.replace(new_config, new_tokens);
+
+    trigger
+        .tx
+        .send(())
+        .map_err(|_| AppError::Config("Failed to trigger refresh".into()))
 }
 
-
+/// Checks a token and returns the identifier of its owner. When `token` is empty, the token
+/// already stored for `account_id` is checked instead.
 #[tauri::command]
-pub async fn delete_credentials(app: AppHandle) -> Result<(), String> {
-    credentials::delete_token();
-    credentials::save_config(&app, &Config::default())?;
-    Ok(())
+pub async fn validate_credentials(
+    store: State<'_, ConfigStore>,
+    kind: ProviderKind,
+    account_id: Option<String>,
+    token: Option<String>,
+) -> AppResult<String> {
+    let token = token
+        .filter(|t| !t.is_empty())
+        .or_else(|| account_id.and_then(|id| store.snapshot().tokens.get(&id).cloned()))
+        .ok_or_else(|| AppError::Config("No token to validate".into()))?;
+
+    let account = Account { id: String::new(), kind, workspace: String::new(), repos: Vec::new() };
+    provider::build(reqwest::Client::new(), &account, &token).validate().await
 }
 
 #[tauri::command]
-pub async fn validate_credentials(token: String) -> Result<String, String> {
-    let client = reqwest::Client::new();
-    bitbucket::fetch_user_account_id(&client, &token).await
-}
-
-#[tauri::command]
-pub async fn get_pull_requests(state: State<'_, PrState>) -> Result<Vec<bitbucket::PullRequest>, String> {
+pub async fn get_pull_requests(state: State<'_, PrState>) -> Result<Vec<PullRequest>, ()> {
     Ok(state.prs.lock().await.clone())
 }
 
 #[tauri::command]
-pub async fn test_notification(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_notification::NotificationExt;
-    app.notification()
-        .builder()
-        .title("New PR to review")
-        .body("Fix login bug by John Doe")
-        .show()
-        .map_err(|e| e.to_string())
+pub fn refresh_pull_requests(trigger: State<'_, PollTrigger>) -> AppResult<()> {
+    trigger
+        .tx
+        .send(())
+        .map_err(|_| AppError::Config("Failed to trigger refresh".into()))
 }
 
 #[tauri::command]
-pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
+pub fn hide_settings_window(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("settings") {
+        win.hide()?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
     // Hide the popover first (it has alwaysOnTop=true and would cover settings)
-    if let Some(popover) = app.get_webview_window("popover") {
+    if let Some(popover) = app.get_webview_window(crate::popover::LABEL) {
         let _ = popover.hide();
     }
 
     let win = match app.get_webview_window("settings") {
         Some(w) => w,
-        None => {
-            // Window was closed/destroyed — recreate it
-            WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
-                .title("peekr — Settings")
-                .inner_size(440.0, 520.0)
-                .resizable(false)
-                .decorations(true)
-                .always_on_top(false)
-                .skip_taskbar(false)
-                .visible(false)
-                .build()
-                .map_err(|e| e.to_string())?
-        }
+        // Window was closed/destroyed — recreate it
+        None => WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
+            .title("peekr — Settings")
+            .inner_size(440.0, 520.0)
+            .resizable(false)
+            .decorations(true)
+            .always_on_top(false)
+            .skip_taskbar(false)
+            .visible(false)
+            .build()?,
     };
 
-    win.show().map_err(|e| e.to_string())?;
-    win.set_focus().map_err(|e| e.to_string())?;
+    win.show()?;
+    win.set_focus()?;
     // set_focus() briefly activates the app as foreground on macOS (Dock icon appears).
     // Re-assert Accessory policy immediately so the app never shows in the Dock.
     #[cfg(target_os = "macos")]
     let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     Ok(())
-}
-
-#[tauri::command]
-pub async fn refresh_pull_requests(
-    trigger: State<'_, crate::state::PollTrigger>,
-) -> Result<(), String> {
-    trigger
-        .tx
-        .send(())
-        .map_err(|_| "Failed to trigger refresh".to_string())
 }

@@ -1,5 +1,11 @@
+export type ProviderKind = "bitbucket" | "github";
+
 export interface PullRequest {
-  id: number;
+  provider: ProviderKind;
+  account_id: string;
+  /** Repo name within the account; PR numbers are only unique per repo. */
+  repo: string;
+  number: number;
   title: string;
   author_display_name: string;
   author_avatar_url: string;
@@ -9,19 +15,30 @@ export interface PullRequest {
   updated_on: string;
   comment_count: number;
   html_url: string;
-  repo_slug: string;
-  approved: boolean;
   draft: boolean;
 }
 
-export interface Config {
+export interface AccountConfig {
+  id: string;
+  kind: ProviderKind;
   workspace: string;
   repos: string[];
-  polling_interval_secs: number;
   has_token: boolean;
 }
 
-export interface RepoInfo {
-  slug: string;
-  name: string;
+export interface Config {
+  polling_interval_secs: number;
+  accounts: AccountConfig[];
 }
+
+/** What the settings window sends back for each account. */
+export interface AccountInput {
+  id?: string;
+  kind: ProviderKind;
+  workspace: string;
+  repos: string[];
+  /** Empty keeps the stored token. */
+  token?: string;
+}
+
+export const prKey = (pr: PullRequest) => `${pr.account_id}/${pr.repo}#${pr.number}`;

@@ -358,21 +358,6 @@ button {
   gap: 3px;
 }
 
-.pr-item-approved {
-  flex-shrink: 0;
-  color: #34c759;
-  font-weight: 600;
-}
-
-.pr-item--approved {
-  opacity: 0.6;
-}
-
-.pr-item--approved .pr-item-title {
-  text-decoration: line-through;
-  text-decoration-color: rgba(0, 0, 0, 0.3);
-}
-
 .pr-item--draft {
   opacity: 0.75;
 }
@@ -556,4 +541,61 @@ button {
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Provider label next to a repo group title (only shown with several providers) */
+.pr-list-group-provider {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.6;
+}
+
+/* Settings: one card per account */
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-account {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.settings-account-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-field select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.btn-danger {
+  padding: 4px 10px;
+  color: var(--danger);
+  font-size: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.settings-actions-right {
+  margin-left: auto;
 }
