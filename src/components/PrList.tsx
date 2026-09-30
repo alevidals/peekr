@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { PROVIDERS } from "../providers";
 import { prKey, type PullRequest } from "../types";
+import { ProviderIcon } from "./Icons";
 import { PrItem } from "./PrItem";
 
 interface Props {
@@ -31,20 +32,23 @@ export function PrList({ prs }: Props) {
   // Only worth labelling the provider when more than one is in play.
   const showProvider = new Set(prs.map((pr) => pr.provider)).size > 1;
 
+  let index = 0;
   return (
     <div className="pr-list">
       {groups.map((group) => (
         <div key={group.key} className="pr-list-group">
           <div className="pr-list-group-header">
-            {group.repo}
+            <ProviderIcon kind={group.provider} size={12} />
+            <span className="pr-list-group-name">{group.repo}</span>
             {showProvider && (
               <span className="pr-list-group-provider">{PROVIDERS[group.provider].label}</span>
             )}
+            <span className="pr-list-group-count">{group.prs.length}</span>
           </div>
           {group.prs.map((pr, i) => (
             <Fragment key={prKey(pr)}>
               {i > 0 && <div className="pr-item-separator" />}
-              <PrItem pr={pr} />
+              <PrItem pr={pr} index={index++} />
             </Fragment>
           ))}
         </div>

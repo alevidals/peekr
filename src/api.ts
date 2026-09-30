@@ -1,12 +1,12 @@
 // Single place that knows the names of the Tauri commands and events.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AccountInput, Config, ProviderKind, PullRequest } from "./types";
+import type { AccountInput, Config, ProviderKind, PullRequest, Theme } from "./types";
 
 export const getConfig = () => invoke<Config>("get_config");
 
-export const saveConfig = (pollingIntervalSecs: number, accounts: AccountInput[]) =>
-  invoke<void>("save_config", { pollingIntervalSecs, accounts });
+export const saveConfig = (pollingIntervalSecs: number, theme: Theme, accounts: AccountInput[]) =>
+  invoke<void>("save_config", { pollingIntervalSecs, theme, accounts });
 
 export const validateCredentials = (kind: ProviderKind, accountId?: string, token?: string) =>
   invoke<string>("validate_credentials", { kind, accountId, token });

@@ -25,7 +25,8 @@ export const PROVIDERS: Record<ProviderKind, ProviderMeta> = {
         El slug de la URL: bitbucket.org/<strong>workspace</strong>/repo
       </>
     ),
-    tokenHint: "Repository o Workspace Access Token de Bitbucket Cloud",
+    tokenHint:
+      "Repository o Workspace Access Token de Bitbucket Cloud (con permiso de lectura en Pipelines para ver el estado del CI)",
     reposHint: "Un slug por línea — el nombre que aparece en la URL",
     reposPlaceholder: "my-repo\nanother-repo\nthird-repo",
     reposRequired: true,
@@ -40,7 +41,7 @@ export const PROVIDERS: Record<ProviderKind, ProviderMeta> = {
       </>
     ),
     tokenHint:
-      "Personal Access Token: classic con scope repo, o fine-grained con permiso de lectura en Pull requests. Si la organización usa SSO, autoriza el token para ella.",
+      "Personal Access Token: classic con scope repo, o fine-grained con permiso de lectura en Pull requests (más Checks y Commit statuses para ver el estado del CI). Si la organización usa SSO, autoriza el token para ella.",
     reposHint:
       "Opcional — déjalo vacío para vigilar todos los repos. Un repo por línea (nombre u owner/nombre)",
     reposPlaceholder: "web\napi",

@@ -114,6 +114,8 @@ mod tests {
             comment_count: 0,
             html_url: String::new(),
             draft: false,
+            approvals: 0,
+            ci_status: None,
         }
     }
 

@@ -25,6 +25,27 @@ impl ProviderKind {
     }
 }
 
+/// Aggregated state of the checks (pipelines, Actions, commit statuses) on a PR's head commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CiStatus {
+    Success,
+    Failed,
+    Pending,
+}
+
+impl CiStatus {
+    /// Folds individual check results into one: any failure wins, then anything still
+    /// running, and success only if every check passed. `None` when there are no checks.
+    pub fn combine(statuses: impl IntoIterator<Item = CiStatus>) -> Option<CiStatus> {
+        statuses.into_iter().reduce(|a, b| match (a, b) {
+            (CiStatus::Failed, _) | (_, CiStatus::Failed) => CiStatus::Failed,
+            (CiStatus::Pending, _) | (_, CiStatus::Pending) => CiStatus::Pending,
+            _ => CiStatus::Success,
+        })
+    }
+}
+
 /// Provider-agnostic pull request. Every provider maps its API payload to this.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequest {
@@ -45,11 +66,31 @@ pub struct PullRequest {
     pub comment_count: u32,
     pub html_url: String,
     pub draft: bool,
+    /// Number of approvals; 0 when unknown.
+    #[serde(default)]
+    pub approvals: u32,
+    /// `None` when the PR has no checks or they could not be read.
+    #[serde(default)]
+    pub ci_status: Option<CiStatus>,
 }
 
 impl PullRequest {
     /// Globally unique identity (numbers only repeat across repos/accounts).
     pub fn key(&self) -> String {
         format!("{}/{}#{}", self.account_id, self.repo, self.number)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CiStatus::*;
+    use super::*;
+
+    #[test]
+    fn combine_prioritises_failure_then_pending() {
+        assert_eq!(CiStatus::combine([]), None);
+        assert_eq!(CiStatus::combine([Success, Success]), Some(Success));
+        assert_eq!(CiStatus::combine([Success, Pending]), Some(Pending));
+        assert_eq!(CiStatus::combine([Pending, Failed, Success]), Some(Failed));
     }
 }

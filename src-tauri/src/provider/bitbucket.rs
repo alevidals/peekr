@@ -7,7 +7,7 @@ use tokio::sync::OnceCell;
 
 use super::{FetchReport, ReviewProvider};
 use crate::{
-    domain::{ProviderKind, PullRequest},
+    domain::{CiStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
 };
 
@@ -60,8 +60,35 @@ impl Bitbucket {
             .map(String::as_str)
     }
 
+    /// Pipeline/build status of the PR's head commit. Best effort: a token without the
+    /// pipeline/status scope, or any API error, just means "no status".
+    async fn ci_status(&self, repo: &str, pr_id: u64) -> Option<CiStatus> {
+        let url = format!(
+            "{API}/repositories/{}/{repo}/pullrequests/{pr_id}/statuses?pagelen=100&fields=values.state",
+            self.workspace
+        );
+        let result: Result<PagedResponse<RawStatus>, reqwest::Error> = async {
+            self.client
+                .get(&url)
+                .bearer_auth(&self.token)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await
+        }
+        .await;
+        match result {
+            Ok(page) => CiStatus::combine(page.values.iter().map(RawStatus::ci_status)),
+            Err(e) => {
+                log::debug!("No CI status for {repo}#{pr_id}: {e}");
+                None
+            }
+        }
+    }
+
     async fn fetch_repo(&self, repo: &str, user_id: &str) -> AppResult<Vec<PullRequest>> {
-        let mut prs = Vec::new();
+        let mut raws = Vec::new();
         let mut use_q = self.use_q_filter.load(Ordering::Relaxed);
         let workspace = &self.workspace;
 
@@ -96,13 +123,19 @@ impl Bitbucket {
                     continue;
                 }
                 if use_q || raw.is_reviewer(user_id) {
-                    prs.push(raw.into_pr(&self.account_id, repo));
+                    raws.push(raw);
                 }
             }
             url = page.next;
         }
 
-        Ok(prs)
+        Ok(join_all(raws.into_iter().map(|raw| async move {
+            let ci_status = self.ci_status(repo, raw.id).await;
+            let mut pr = raw.into_pr(&self.account_id, repo);
+            pr.ci_status = ci_status;
+            pr
+        }))
+        .await)
     }
 }
 
@@ -198,6 +231,22 @@ struct Participant {
 }
 
 #[derive(Debug, Deserialize)]
+struct RawStatus {
+    state: String,
+}
+
+impl RawStatus {
+    fn ci_status(&self) -> CiStatus {
+        match self.state.as_str() {
+            "SUCCESSFUL" => CiStatus::Success,
+            "INPROGRESS" => CiStatus::Pending,
+            // FAILED, STOPPED and anything unknown need a human look.
+            _ => CiStatus::Failed,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct RawPullRequest {
     id: u64,
     title: String,
@@ -229,7 +278,12 @@ impl RawPullRequest {
         self.participants_of(user_id).any(|p| p.approved)
     }
 
+    fn approvals(&self) -> u32 {
+        self.participants.iter().flatten().filter(|p| p.approved).count() as u32
+    }
+
     fn into_pr(self, account_id: &str, repo: &str) -> PullRequest {
+        let approvals = self.approvals();
         PullRequest {
             provider: ProviderKind::Bitbucket,
             account_id: account_id.to_string(),
@@ -253,6 +307,8 @@ impl RawPullRequest {
             comment_count: self.comment_count.unwrap_or(0),
             html_url: self.links.html.href,
             draft: self.draft,
+            approvals,
+            ci_status: None,
         }
     }
 }
@@ -293,6 +349,16 @@ mod tests {
         assert_eq!(pr.comment_count, 3);
         assert_eq!(pr.source_branch, "feat");
         assert_eq!(pr.author_avatar_url, "http://a/x.png");
+        assert_eq!(pr.approvals, 1);
+    }
+
+    #[test]
+    fn maps_status_states() {
+        let state = |s: &str| RawStatus { state: s.into() }.ci_status();
+        assert_eq!(state("SUCCESSFUL"), CiStatus::Success);
+        assert_eq!(state("INPROGRESS"), CiStatus::Pending);
+        assert_eq!(state("FAILED"), CiStatus::Failed);
+        assert_eq!(state("STOPPED"), CiStatus::Failed);
     }
 
     #[test]

@@ -28,8 +28,8 @@
       {
         "label": "settings",
         "title": "peekr — Settings",
-        "width": 440,
-        "height": 520,
+        "width": 480,
+        "height": 640,
         "visible": false,
         "decorations": true,
         "skipTaskbar": false,

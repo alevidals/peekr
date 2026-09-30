@@ -2,7 +2,9 @@
 //!
 //! One search (`review-requested:@me`) lists every open PR waiting on the user — including
 //! requests made to teams they belong to, and dropping PRs once a review has been submitted.
-//! Search results lack branches and full comment counts, so each PR is then fetched once.
+//! Search results lack branches and full comment counts, so each PR is then fetched once,
+//! together with its reviews (approvals) and its checks (Actions check-runs + commit statuses).
+//! The reviews/checks calls are best effort: without the token permission they just yield no data.
 
 use async_trait::async_trait;
 use futures::{stream, StreamExt};
@@ -11,7 +13,7 @@ use serde::Deserialize;
 
 use super::{FetchReport, ReviewProvider};
 use crate::{
-    domain::{ProviderKind, PullRequest},
+    domain::{CiStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
 };
 
@@ -70,7 +72,41 @@ impl Github {
 
     async fn fetch_pull(&self, pull_url: &str, repo: &str) -> AppResult<PullRequest> {
         let raw: RawPull = self.get(pull_url).send().await?.error_for_status()?.json().await?;
-        Ok(raw.into_pr(&self.account_id, repo))
+        let (approvals, ci_status) =
+            tokio::join!(self.approvals(repo, raw.number), self.ci_status(repo, raw.head.sha.as_deref()));
+        let mut pr = raw.into_pr(&self.account_id, repo);
+        pr.approvals = approvals;
+        pr.ci_status = ci_status;
+        Ok(pr)
+    }
+
+    /// GET + JSON that maps any failure to `None` (logged), for the optional extras.
+    async fn get_optional<T: serde::de::DeserializeOwned>(&self, url: String) -> Option<T> {
+        let result: Result<T, reqwest::Error> = async {
+            self.get(&url).send().await?.error_for_status()?.json().await
+        }
+        .await;
+        result
+            .map_err(|e| log::debug!("Optional GitHub call {url} failed: {e}"))
+            .ok()
+    }
+
+    async fn approvals(&self, repo: &str, number: u64) -> u32 {
+        let url = format!("{API}/repos/{repo}/pulls/{number}/reviews?per_page=100");
+        self.get_optional::<Vec<RawReview>>(url)
+            .await
+            .map_or(0, |reviews| count_approvals(&reviews))
+    }
+
+    async fn ci_status(&self, repo: &str, sha: Option<&str>) -> Option<CiStatus> {
+        let sha = sha?;
+        let (runs, status) = tokio::join!(
+            self.get_optional::<CheckRuns>(format!("{API}/repos/{repo}/commits/{sha}/check-runs?per_page=100")),
+            self.get_optional::<CombinedStatus>(format!("{API}/repos/{repo}/commits/{sha}/status")),
+        );
+        let from_runs = runs.into_iter().flat_map(|r| r.check_runs).map(|r| r.ci_status());
+        let from_status = status.and_then(|s| s.ci_status());
+        CiStatus::combine(from_runs.chain(from_status))
     }
 }
 
@@ -179,6 +215,78 @@ struct PullLink {
 struct GitRef {
     #[serde(rename = "ref")]
     name: String,
+    /// Head commit; only read for `head`.
+    sha: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawReview {
+    user: Option<ReviewUser>,
+    state: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReviewUser {
+    login: String,
+}
+
+/// Reviews come oldest first; a reviewer's last approve/request-changes/dismissal decides,
+/// while plain comments don't change their standing.
+fn count_approvals(reviews: &[RawReview]) -> u32 {
+    let mut standing: std::collections::HashMap<&str, bool> = std::collections::HashMap::new();
+    for review in reviews {
+        let Some(user) = &review.user else { continue };
+        match review.state.as_str() {
+            "APPROVED" => standing.insert(&user.login, true),
+            "CHANGES_REQUESTED" | "DISMISSED" => standing.insert(&user.login, false),
+            _ => None,
+        };
+    }
+    standing.values().filter(|approved| **approved).count() as u32
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckRuns {
+    check_runs: Vec<CheckRun>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckRun {
+    status: String,
+    conclusion: Option<String>,
+}
+
+impl CheckRun {
+    fn ci_status(&self) -> CiStatus {
+        if self.status != "completed" {
+            return CiStatus::Pending;
+        }
+        match self.conclusion.as_deref() {
+            Some("success" | "neutral" | "skipped") => CiStatus::Success,
+            _ => CiStatus::Failed,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CombinedStatus {
+    state: String,
+    #[serde(default)]
+    total_count: u32,
+}
+
+impl CombinedStatus {
+    /// `None` when the commit has no legacy statuses (GitHub reports "pending" for that).
+    fn ci_status(&self) -> Option<CiStatus> {
+        if self.total_count == 0 {
+            return None;
+        }
+        Some(match self.state.as_str() {
+            "success" => CiStatus::Success,
+            "pending" => CiStatus::Pending,
+            _ => CiStatus::Failed,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -218,6 +326,8 @@ impl RawPull {
             comment_count: self.comments.unwrap_or(0) + self.review_comments.unwrap_or(0),
             html_url: self.html_url,
             draft: self.draft,
+            approvals: 0,
+            ci_status: None,
         }
     }
 }
@@ -247,6 +357,37 @@ mod tests {
     }
 
     #[test]
+    fn approvals_use_each_reviewers_latest_verdict() {
+        let review = |login: &str, state: &str| RawReview {
+            user: Some(ReviewUser { login: login.into() }),
+            state: state.into(),
+        };
+        let reviews = [
+            review("a", "APPROVED"),
+            review("a", "COMMENTED"),
+            review("b", "APPROVED"),
+            review("b", "CHANGES_REQUESTED"),
+            review("c", "APPROVED"),
+        ];
+        assert_eq!(count_approvals(&reviews), 2);
+    }
+
+    #[test]
+    fn maps_check_runs_and_statuses() {
+        let run = |status: &str, conclusion: Option<&str>| {
+            CheckRun { status: status.into(), conclusion: conclusion.map(Into::into) }.ci_status()
+        };
+        assert_eq!(run("completed", Some("success")), CiStatus::Success);
+        assert_eq!(run("completed", Some("skipped")), CiStatus::Success);
+        assert_eq!(run("completed", Some("failure")), CiStatus::Failed);
+        assert_eq!(run("in_progress", None), CiStatus::Pending);
+
+        let status = |state: &str, total_count| CombinedStatus { state: state.into(), total_count }.ci_status();
+        assert_eq!(status("pending", 0), None);
+        assert_eq!(status("failure", 2), Some(CiStatus::Failed));
+    }
+
+    #[test]
     fn search_item_and_pull_parse() {
         let item: SearchItem = serde_json::from_str(
             r#"{"repository_url":"https://api.github.com/repos/acme/web",
@@ -259,7 +400,7 @@ mod tests {
             r#"{"number":7,"title":"Add x","html_url":"https://github.com/acme/web/pull/7",
                 "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z","draft":true,
                 "user":{"login":"octo","avatar_url":"http://a/o.png"},
-                "head":{"ref":"feat"},"base":{"ref":"main"},"comments":2,"review_comments":3}"#,
+                "head":{"ref":"feat","sha":"abc"},"base":{"ref":"main"},"comments":2,"review_comments":3}"#,
         )
         .unwrap()
         .into_pr("acc", "acme/web");

@@ -70,3 +70,97 @@ export function IconRefresh({ size = 14, className }: IconProps) {
     size, className
   );
 }
+
+export function IconChevron({ size = 14, className }: IconProps) {
+  return base(<path d="M9 6l6 6l-6 6" />, size, className);
+}
+
+export function IconTrash({ size = 14, className }: IconProps) {
+  return base(
+    <>
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V4h6v3" />
+    </>,
+    size, className
+  );
+}
+
+export function IconPlus({ size = 14, className }: IconProps) {
+  return base(<path d="M12 5v14M5 12h14" />, size, className);
+}
+
+export function IconCheck({ size = 14, className }: IconProps) {
+  return base(<path d="M5 12l5 5L20 7" />, size, className);
+}
+
+export function IconAlert({ size = 14, className }: IconProps) {
+  return base(
+    <>
+      <path d="M12 9v4M12 17h.01" />
+      <path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+    </>,
+    size, className
+  );
+}
+
+export function IconBranch({ size = 12, className }: IconProps) {
+  return base(
+    <>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="18" cy="8" r="2" />
+      <path d="M6 8v8M18 10c0 4-6 3-12 6" />
+    </>,
+    size, className
+  );
+}
+
+export function IconGithub({ size = 16, className }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.59.23 2.76.11 3.05.74.8 1.18 1.83 1.18 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.79.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
+    </svg>
+  );
+}
+
+export function IconBitbucket({ size = 16, className }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M2.7 3.5a.7.7 0 0 0-.7.8l2.9 17.6c.1.4.4.7.8.7h13.8c.3 0 .6-.2.6-.6L23 4.3a.7.7 0 0 0-.7-.8H2.7zm12.5 12.3H9L7.7 9h8.7l-1.2 6.8z" />
+    </svg>
+  );
+}
+
+export function ProviderIcon({ kind, size = 16, className }: IconProps & { kind: "bitbucket" | "github" }) {
+  return kind === "github" ? (
+    <IconGithub size={size} className={className} />
+  ) : (
+    <IconBitbucket size={size} className={className} />
+  );
+}
+
+export function IconSearch({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </>,
+    size, className
+  );
+}
+
+export function IconX({ size = 14, className }: IconProps) {
+  return base(<path d="M6 6l12 12M18 6L6 18" />, size, className);
+}
+
+export function IconSearchOff({ size = 28, className }: IconProps) {
+  return base(
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5M8.5 8.5l5 5M13.5 8.5l-5 5" />
+    </>,
+    size, className
+  );
+}

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
-    config::{self, Account, AppConfig},
+    config::{self, Account, AppConfig, Theme},
     domain::{ProviderKind, PullRequest},
     error::{AppError, AppResult},
     provider, secrets,
@@ -23,6 +23,7 @@ pub struct AccountResponse {
 #[derive(Serialize)]
 pub struct ConfigResponse {
     pub polling_interval_secs: u64,
+    pub theme: Theme,
     pub accounts: Vec<AccountResponse>,
 }
 
@@ -43,6 +44,7 @@ pub fn get_config(store: State<'_, ConfigStore>) -> ConfigResponse {
     let snapshot = store.snapshot();
     ConfigResponse {
         polling_interval_secs: snapshot.config.polling_interval_secs,
+        theme: snapshot.config.theme,
         accounts: snapshot
             .config
             .accounts
@@ -64,6 +66,7 @@ pub async fn save_config(
     store: State<'_, ConfigStore>,
     trigger: State<'_, PollTrigger>,
     polling_interval_secs: u64,
+    theme: Theme,
     accounts: Vec<AccountInput>,
 ) -> AppResult<()> {
     let previous = store.snapshot();
@@ -107,6 +110,7 @@ pub async fn save_config(
     let new_config = AppConfig {
         polling_interval_secs: config::clamp_interval(polling_interval_secs),
         accounts: new_accounts,
+        theme,
         ..AppConfig::default()
     };
     config::save(&app, &new_config)?;
@@ -169,7 +173,7 @@ pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
         // Window was closed/destroyed — recreate it
         None => WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
             .title("peekr — Settings")
-            .inner_size(440.0, 520.0)
+            .inner_size(480.0, 640.0)
             .resizable(false)
             .decorations(true)
             .always_on_top(false)

@@ -1,5 +1,9 @@
 export type ProviderKind = "bitbucket" | "github";
 
+export type Theme = "system" | "light" | "dark";
+
+export type CiStatus = "success" | "failed" | "pending";
+
 export interface PullRequest {
   provider: ProviderKind;
   account_id: string;
@@ -16,6 +20,9 @@ export interface PullRequest {
   comment_count: number;
   html_url: string;
   draft: boolean;
+  approvals: number;
+  /** Absent when the PR has no checks or they could not be read. */
+  ci_status: CiStatus | null;
 }
 
 export interface AccountConfig {
@@ -28,6 +35,7 @@ export interface AccountConfig {
 
 export interface Config {
   polling_interval_secs: number;
+  theme: Theme;
   accounts: AccountConfig[];
 }
 

@@ -38,11 +38,24 @@ impl Account {
     }
 }
 
+/// UI colour scheme; `System` follows the OS.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub version: u32,
     pub polling_interval_secs: u64,
     pub accounts: Vec<Account>,
+    /// Added after v2 shipped: older files simply lack it.
+    #[serde(default)]
+    pub theme: Theme,
 }
 
 impl Default for AppConfig {
@@ -51,6 +64,7 @@ impl Default for AppConfig {
             version: CONFIG_VERSION,
             polling_interval_secs: DEFAULT_POLL_SECS,
             accounts: Vec::new(),
+            theme: Theme::default(),
         }
     }
 }
@@ -190,6 +204,19 @@ mod tests {
         assert!(json.contains("\"github\""));
         let back: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(back.accounts[0].kind, ProviderKind::Github);
+    }
+
+    #[test]
+    fn theme_defaults_to_system_for_older_files() {
+        let config: AppConfig =
+            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#).unwrap();
+        assert_eq!(config.theme, Theme::System);
+
+        let dark: AppConfig = serde_json::from_str(
+            r#"{"version":2,"polling_interval_secs":60,"accounts":[],"theme":"dark"}"#,
+        )
+        .unwrap();
+        assert_eq!(dark.theme, Theme::Dark);
     }
 
     #[test]

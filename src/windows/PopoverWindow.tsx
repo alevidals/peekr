@@ -1,37 +1,98 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { openSettingsWindow } from "../api";
 import { EmptyState } from "../components/EmptyState";
-import { IconPencil, IconRefresh, IconSettings } from "../components/Icons";
+import { IconAlert, IconCircleCheck, IconPencil, IconRefresh, IconSearch, IconSettings, IconX } from "../components/Icons";
 import { PrList } from "../components/PrList";
+import { matchesQuery } from "../search";
 import { useConfig } from "../hooks/useConfig";
 import { usePopoverAnimation } from "../hooks/usePopoverAnimation";
 import { usePullRequests } from "../hooks/usePullRequests";
 
 export function PopoverWindow() {
   const [hideDraft, setHideDraft] = useState(false);
+  const [onlyPassing, setOnlyPassing] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  function closeSearch() {
+    setSearching(false);
+    setQuery("");
+  }
+
   const { config, isConfigured, reload: reloadConfig } = useConfig();
   // Settings are edited in another window, so re-read them whenever the popover opens.
-  const { animKey, closing } = usePopoverAnimation(reloadConfig);
+  // Each opening also starts with a clean search.
+  const onOpen = useCallback(() => {
+    reloadConfig();
+    closeSearch();
+  }, [reloadConfig]);
+  const { animKey, closing } = usePopoverAnimation(onOpen);
   const { prs, loading, error, lastFetched, refresh } = usePullRequests();
 
   const draftCount = prs.filter((pr) => pr.draft).length;
-  const visiblePrs = prs.filter((pr) => !(hideDraft && pr.draft));
+  const hasCi = prs.some((pr) => pr.ci_status !== null);
+  const activeQuery = searching ? query : "";
+  const visiblePrs = prs.filter(
+    (pr) =>
+      !(hideDraft && pr.draft) &&
+      !(onlyPassing && pr.ci_status !== "success") &&
+      matchesQuery(pr, activeQuery)
+  );
+
+  // "/" opens the search from anywhere in the popover.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (e.key === "/" && !typing && prs.length > 0) {
+        e.preventDefault();
+        setSearching(true);
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [prs.length]);
 
   function renderContent() {
     if (config === undefined) return <EmptyState type="loading" />;
     if (!isConfigured) return <EmptyState type="not-configured" />;
     if (loading && prs.length === 0) return <EmptyState type="loading" />;
-    if (visiblePrs.length === 0) return <EmptyState type="no-prs" />;
+    if (visiblePrs.length === 0) {
+      return <EmptyState type={prs.length > 0 ? "no-matches" : "no-prs"} />;
+    }
     return <PrList prs={visiblePrs} />;
   }
 
   return (
     <div key={animKey} className={`popover${closing ? " popover--closing" : ""}`}>
       <header className="popover-header">
-        <span className="popover-title">peekr</span>
-        <div className="popover-header-actions">
+        <div className="popover-brand">
+          <span className="popover-logo" />
+          <span className="popover-title">peekr</span>
           {!loading && prs.length > 0 && (
             <span className="pr-count">{prs.length > 99 ? "99+" : prs.length}</span>
+          )}
+        </div>
+        <div className="popover-header-actions">
+          {prs.length > 0 && (
+            <button
+              className={`icon-btn${searching ? " filter-btn--active" : ""}`}
+              title="Search ( / )"
+              onClick={() => (searching ? closeSearch() : setSearching(true))}
+            >
+              <IconSearch size={16} />
+            </button>
+          )}
+          {hasCi && (
+            <button
+              className={`icon-btn${onlyPassing ? " filter-btn--active" : ""}`}
+              title={onlyPassing ? "Show all pipelines" : "Only PRs with passing pipeline"}
+              aria-pressed={onlyPassing}
+              onClick={() => setOnlyPassing((v) => !v)}
+            >
+              <IconCircleCheck size={16} />
+            </button>
           )}
           {draftCount > 0 && (
             <button
@@ -39,7 +100,7 @@ export function PopoverWindow() {
               title={hideDraft ? "Show drafts" : "Hide drafts"}
               onClick={() => setHideDraft((v) => !v)}
             >
-              <IconPencil size={18} />
+              <IconPencil size={16} />
             </button>
           )}
           <button
@@ -47,12 +108,37 @@ export function PopoverWindow() {
             title="Settings"
             onClick={() => openSettingsWindow().catch(console.error)}
           >
-            <IconSettings size={18} />
+            <IconSettings size={16} />
           </button>
         </div>
       </header>
 
-      {error && <div className="error-banner">⚠ {error}</div>}
+      {searching && (
+        <div className="search-bar">
+          <IconSearch size={14} className="search-bar-icon" />
+          <input
+            ref={searchRef}
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                closeSearch();
+              }
+            }}
+            placeholder="Search title, author, repo or branch"
+            spellCheck={false}
+          />
+          {query && (
+            <button className="icon-btn search-bar-clear" title="Clear" onClick={() => setQuery("")}>
+              <IconX size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && <div className="error-banner"><IconAlert size={13} /> <span>{error}</span></div>}
 
       <div className="popover-content">{renderContent()}</div>
 
@@ -60,13 +146,13 @@ export function PopoverWindow() {
         <footer className="popover-footer">
           <span className="popover-footer-status">
             {loading
-              ? "Loading..."
+              ? "Syncing…"
               : lastFetched
-              ? lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              ? `Updated ${lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
               : ""}
           </span>
           <button className="refresh-btn" onClick={refresh} title="Refresh">
-            <IconRefresh size={16} />
+            <IconRefresh size={14} className={loading ? "spin" : undefined} />
           </button>
         </footer>
       )}

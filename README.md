@@ -43,3 +43,7 @@ src/
 3. Add its entry to `src/providers.tsx` and the `ProviderKind` type.
 
 Nothing else (poller, tray, notifications, list UI) needs to change. `provider/github.rs` is a compact example.
+
+---
+
+Made by [alevidals](https://github.com/alevidals).
