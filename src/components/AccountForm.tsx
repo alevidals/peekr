@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconCheck, IconChevron, IconTrash, ProviderIcon } from "./Icons";
 import { PROVIDERS, PROVIDER_KINDS } from "../providers";
 import type { ProviderKind } from "../types";
@@ -125,6 +126,23 @@ export function AccountForm({
               placeholder={draft.hasToken ? "Guardado — deja en blanco para no cambiarlo" : "••••••••••••"}
             />
             <span className="hint">{meta.tokenHint}</span>
+            <div className="token-help">
+              <span className="hint">Permisos necesarios:</span>
+              <ul>
+                {meta.tokenScopes.map((s) => (
+                  <li key={s}>
+                    <code>{s}</code>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => openUrl(meta.tokenUrl(draft.workspace))}
+              >
+                Crear token en {meta.label} ↗
+              </button>
+            </div>
           </div>
 
           <div className="field">
