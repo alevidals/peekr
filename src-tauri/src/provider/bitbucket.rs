@@ -60,6 +60,17 @@ impl Bitbucket {
             .map(String::as_str)
     }
 
+    async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T, reqwest::Error> {
+        self.client
+            .get(url)
+            .bearer_auth(&self.token)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await
+    }
+
     /// Pipeline/build status of the PR's head commit. Best effort: a token without the
     /// pipeline/status scope, or any API error, just means "no status".
     async fn ci_status(&self, repo: &str, pr_id: u64) -> Option<CiStatus> {
@@ -67,21 +78,26 @@ impl Bitbucket {
             "{API}/repositories/{}/{repo}/pullrequests/{pr_id}/statuses?pagelen=100&fields=values.state",
             self.workspace
         );
-        let result: Result<PagedResponse<RawStatus>, reqwest::Error> = async {
-            self.client
-                .get(&url)
-                .bearer_auth(&self.token)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await
-        }
-        .await;
-        match result {
+        match self.get_json::<PagedResponse<RawStatus>>(&url).await {
             Ok(page) => CiStatus::combine(page.values.iter().map(RawStatus::ci_status)),
             Err(e) => {
                 log::debug!("No CI status for {repo}#{pr_id}: {e}");
+                None
+            }
+        }
+    }
+
+    /// Bitbucket's own verdict on every merge rule of the PR (approvals, builds, conflicts…).
+    /// Best effort: `None` makes the caller fall back to the heuristic.
+    async fn merge_checks(&self, repo: &str, pr_id: u64) -> Option<Vec<MergeCheck>> {
+        let url = format!(
+            "{API}/repositories/{}/{repo}/pullrequests/{pr_id}/mergeability/checks",
+            self.workspace
+        );
+        match self.get_json::<PagedResponse<MergeCheck>>(&url).await {
+            Ok(page) => Some(page.values),
+            Err(e) => {
+                log::debug!("No mergeability checks for {repo}#{pr_id}: {e}");
                 None
             }
         }
@@ -132,8 +148,12 @@ impl Bitbucket {
         }
 
         Ok(join_all(raws.into_iter().map(|raw| async move {
-            let ci_status = self.ci_status(repo, raw.id).await;
-            let merge = (role == Role::Author).then(|| raw.merge_status(ci_status));
+            let (ci_status, checks) = if role == Role::Author {
+                tokio::join!(self.ci_status(repo, raw.id), self.merge_checks(repo, raw.id))
+            } else {
+                (self.ci_status(repo, raw.id).await, None)
+            };
+            let merge = (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
             let mut pr = raw.into_pr(&self.account_id, repo);
             pr.ci_status = ci_status;
             pr.merge = merge;
@@ -296,6 +316,95 @@ struct RawPullRequest {
     task_count: Option<u32>,
 }
 
+/// One entry of `pullrequests/{id}/mergeability/checks`.
+#[derive(Debug, Deserialize)]
+struct MergeCheck {
+    status: String,
+    #[serde(default)]
+    blocking: bool,
+    #[serde(rename = "type")]
+    kind: String,
+    reason: Option<String>,
+    check: Option<MergeCheckDefinition>,
+    requirement: Option<serde_json::Value>,
+    observed: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MergeCheckDefinition {
+    kind: String,
+}
+
+impl MergeCheck {
+    fn failed(&self) -> bool {
+        self.blocking && self.status != "PASSED"
+    }
+
+    fn number(value: &Option<serde_json::Value>, key: &str) -> u64 {
+        value.as_ref().and_then(|v| v.get(key)).and_then(|n| n.as_u64()).unwrap_or(0)
+    }
+
+    /// State and message for a failed check.
+    fn blocker(&self) -> (MergeState, String) {
+        let kind = self.check.as_ref().map_or(self.kind.as_str(), |c| c.kind.as_str());
+        let progress = |required: &str, observed: &str| {
+            format!("{}/{}", Self::number(&self.observed, observed), Self::number(&self.requirement, required))
+        };
+        match kind {
+            "git_mergeability_check" if self.reason.as_deref() == Some("conflicts") => {
+                (MergeState::Conflicts, "Merge conflicts".to_string())
+            }
+            "minimum_approvals" => (
+                MergeState::Waiting,
+                format!("Approvals {}", progress("minimum_approvals", "approval_count")),
+            ),
+            "minimum_successful_builds" => (
+                MergeState::Waiting,
+                format!("Successful builds {}", progress("minimum_successful_builds", "successful_build_count")),
+            ),
+            "in_progress_builds" => (MergeState::Waiting, "Pipeline running".to_string()),
+            "failed_builds" => (MergeState::Blocked, "Pipeline failed".to_string()),
+            other => (MergeState::Blocked, other.replace('_', " ")),
+        }
+    }
+}
+
+/// Readiness from Bitbucket's own merge checks. Changes requested and open tasks are kept
+/// from the PR payload because they only show up as checks when the repo enforces them.
+fn assess_checks(draft: bool, changes_requested: bool, open_tasks: u32, checks: &[MergeCheck]) -> MergeStatus {
+    if draft {
+        return MergeStatus::new(MergeState::Draft, vec![]);
+    }
+    let mut blockers = Vec::new();
+    let mut push = |state: MergeState, message: String, worst: &mut MergeState| {
+        if !blockers.contains(&message) {
+            blockers.push(message);
+        }
+        let rank = |s: MergeState| match s {
+            MergeState::Blocked => 3,
+            MergeState::Conflicts => 2,
+            MergeState::Waiting => 1,
+            _ => 0,
+        };
+        if rank(state) > rank(*worst) {
+            *worst = state;
+        }
+    };
+    let mut worst = MergeState::Ready;
+    if changes_requested {
+        push(MergeState::Blocked, "Changes requested".to_string(), &mut worst);
+    }
+    if open_tasks > 0 {
+        let noun = if open_tasks == 1 { "task" } else { "tasks" };
+        push(MergeState::Blocked, format!("{open_tasks} open {noun}"), &mut worst);
+    }
+    for check in checks.iter().filter(|c| c.failed()) {
+        let (state, message) = check.blocker();
+        push(state, message, &mut worst);
+    }
+    MergeStatus::new(worst, blockers)
+}
+
 /// Bitbucket exposes no "mergeable" verdict and the merge rules need admin access to read,
 /// so readiness is inferred from what any user can see: build statuses, approvals, requested
 /// changes and open tasks. Merge conflicts are not detectable this way.
@@ -334,13 +443,17 @@ impl RawPullRequest {
         self.author.account_id.as_deref() == Some(user_id)
     }
 
-    fn merge_status(&self, ci: Option<CiStatus>) -> MergeStatus {
+    fn merge_status(&self, ci: Option<CiStatus>, checks: Option<&[MergeCheck]>) -> MergeStatus {
         let changes_requested = self
             .participants
             .iter()
             .flatten()
             .any(|p| p.state.as_deref() == Some("changes_requested"));
-        assess(self.draft, self.approvals(), changes_requested, self.task_count.unwrap_or(0), ci)
+        let open_tasks = self.task_count.unwrap_or(0);
+        match checks {
+            Some(checks) => assess_checks(self.draft, changes_requested, open_tasks, checks),
+            None => assess(self.draft, self.approvals(), changes_requested, open_tasks, ci),
+        }
     }
 
     fn participants_of<'a>(&'a self, user_id: &'a str) -> impl Iterator<Item = &'a Participant> {
@@ -470,7 +583,7 @@ mod tests {
         );
         assert!(pr.is_author("me"));
         assert!(!pr.is_author("x"));
-        let status = pr.merge_status(Some(CiStatus::Success));
+        let status = pr.merge_status(Some(CiStatus::Success), None);
         assert_eq!(status.state, MergeState::Blocked);
         assert_eq!(status.blockers, vec!["Changes requested", "2 open tasks"]);
     }
@@ -486,5 +599,32 @@ mod tests {
         assert_eq!(pr.author_display_name, "Unknown");
         assert!(!pr.draft);
         assert_eq!(pr.comment_count, 0);
+    }
+
+    #[test]
+    fn assesses_from_merge_checks() {
+        let checks: PagedResponse<MergeCheck> = serde_json::from_str(
+            r#"{"values":[
+                {"type":"git_mergeability_check","status":"PASSED","blocking":false,"reason":"clean"},
+                {"type":"standard_merge_check","status":"FAILED","blocking":true,
+                 "check":{"kind":"minimum_approvals"},
+                 "requirement":{"minimum_approvals":2},"observed":{"approval_count":1}},
+                {"type":"standard_merge_check","status":"PASSED","blocking":false,
+                 "check":{"kind":"failed_builds"},"observed":{"failed_build_count":0}}
+            ]}"#,
+        )
+        .unwrap();
+        let status = assess_checks(false, false, 0, &checks.values);
+        assert_eq!(status.state, MergeState::Waiting);
+        assert_eq!(status.blockers, vec!["Approvals 1/2"]);
+
+        let conflicts: PagedResponse<MergeCheck> = serde_json::from_str(
+            r#"{"values":[{"type":"git_mergeability_check","status":"FAILED","blocking":true,"reason":"conflicts"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(assess_checks(false, false, 0, &conflicts.values).state, MergeState::Conflicts);
+        assert_eq!(assess_checks(false, true, 0, &[]).state, MergeState::Blocked);
+        assert!(assess_checks(false, false, 0, &[]).is_ready());
+        assert_eq!(assess_checks(true, false, 0, &checks.values).state, MergeState::Draft);
     }
 }
