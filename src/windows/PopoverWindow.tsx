@@ -9,6 +9,7 @@ import { usePopoverAnimation } from "../hooks/usePopoverAnimation";
 import { usePullRequests } from "../hooks/usePullRequests";
 
 export function PopoverWindow() {
+  const [tab, setTab] = useState<"review" | "mine">("review");
   const [hideDraft, setHideDraft] = useState(false);
   const [onlyPassing, setOnlyPassing] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -28,7 +29,9 @@ export function PopoverWindow() {
     closeSearch();
   }, [reloadConfig]);
   const { animKey, closing } = usePopoverAnimation(onOpen);
-  const { prs, loading, error, lastFetched, refresh } = usePullRequests();
+  const { prs: reviewPrs, mine, loading, error, lastFetched, refresh } = usePullRequests();
+  const prs = tab === "review" ? reviewPrs : mine;
+  const readyCount = mine.filter((pr) => pr.merge?.state === "ready").length;
 
   const draftCount = prs.filter((pr) => pr.draft).length;
   const hasCi = prs.some((pr) => pr.ci_status !== null);
@@ -59,7 +62,7 @@ export function PopoverWindow() {
     if (!isConfigured) return <EmptyState type="not-configured" />;
     if (loading && prs.length === 0) return <EmptyState type="loading" />;
     if (visiblePrs.length === 0) {
-      return <EmptyState type={prs.length > 0 ? "no-matches" : "no-prs"} />;
+      return <EmptyState type={prs.length > 0 ? "no-matches" : tab === "review" ? "no-prs" : "no-mine"} />;
     }
     return <PrList prs={visiblePrs} />;
   }
@@ -70,9 +73,6 @@ export function PopoverWindow() {
         <div className="popover-brand">
           <span className="popover-logo" />
           <span className="popover-title">peekr</span>
-          {!loading && prs.length > 0 && (
-            <span className="pr-count">{prs.length > 99 ? "99+" : prs.length}</span>
-          )}
         </div>
         <div className="popover-header-actions">
           {prs.length > 0 && (
@@ -112,6 +112,33 @@ export function PopoverWindow() {
           </button>
         </div>
       </header>
+
+      {isConfigured && (
+        <nav className="tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={tab === "review"}
+            className={`tab${tab === "review" ? " tab--active" : ""}`}
+            onClick={() => setTab("review")}
+          >
+            To review
+            {reviewPrs.length > 0 && <span className="pr-count">{reviewPrs.length > 99 ? "99+" : reviewPrs.length}</span>}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "mine"}
+            className={`tab${tab === "mine" ? " tab--active" : ""}`}
+            onClick={() => setTab("mine")}
+          >
+            My PRs
+            {mine.length > 0 && (
+              <span className={`pr-count${readyCount > 0 ? " pr-count--ready" : ""}`} title={readyCount > 0 ? `${readyCount} ready to merge` : undefined}>
+                {readyCount > 0 ? `${readyCount}/${mine.length}` : mine.length}
+              </span>
+            )}
+          </button>
+        </nav>
+      )}
 
       {searching && (
         <div className="search-bar">

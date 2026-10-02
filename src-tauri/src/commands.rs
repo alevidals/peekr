@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
-    config::{self, Account, AppConfig, Theme},
+    config::{self, Account, AppConfig, Appearance, Theme},
     domain::{ProviderKind, PullRequest},
     error::{AppError, AppResult},
     provider, secrets,
@@ -24,6 +24,7 @@ pub struct AccountResponse {
 pub struct ConfigResponse {
     pub polling_interval_secs: u64,
     pub theme: Theme,
+    pub appearance: Appearance,
     pub accounts: Vec<AccountResponse>,
 }
 
@@ -45,6 +46,7 @@ pub fn get_config(store: State<'_, ConfigStore>) -> ConfigResponse {
     ConfigResponse {
         polling_interval_secs: snapshot.config.polling_interval_secs,
         theme: snapshot.config.theme,
+        appearance: snapshot.config.appearance,
         accounts: snapshot
             .config
             .accounts
@@ -67,6 +69,7 @@ pub async fn save_config(
     trigger: State<'_, PollTrigger>,
     polling_interval_secs: u64,
     theme: Theme,
+    appearance: Appearance,
     accounts: Vec<AccountInput>,
 ) -> AppResult<()> {
     let previous = store.snapshot();
@@ -111,6 +114,7 @@ pub async fn save_config(
         polling_interval_secs: config::clamp_interval(polling_interval_secs),
         accounts: new_accounts,
         theme,
+        appearance: appearance.sanitized(),
         ..AppConfig::default()
     };
     config::save(&app, &new_config)?;
@@ -143,6 +147,11 @@ pub async fn validate_credentials(
 #[tauri::command]
 pub async fn get_pull_requests(state: State<'_, PrState>) -> Result<Vec<PullRequest>, ()> {
     Ok(state.prs.lock().await.clone())
+}
+
+#[tauri::command]
+pub async fn get_my_pull_requests(state: State<'_, PrState>) -> Result<Vec<PullRequest>, ()> {
+    Ok(state.mine.lock().await.clone())
 }
 
 #[tauri::command]

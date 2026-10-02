@@ -54,6 +54,7 @@ pub fn run() {
             commands::save_config,
             commands::validate_credentials,
             commands::get_pull_requests,
+            commands::get_my_pull_requests,
             commands::refresh_pull_requests,
             commands::open_settings_window,
             commands::hide_settings_window,

@@ -15,6 +15,12 @@ pnpm tauri build    # production bundle
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
+### My PRs
+
+The "My PRs" tab lists your own open PRs and whether each could be merged now, and notifies you when one becomes ready or its checks fail.
+- **GitHub**: uses GitHub's own verdict (`mergeStateStatus`), so required checks, required reviews, conflicts and "branch behind" follow the branch protection. The token must be able to read PRs and checks via GraphQL.
+- **Bitbucket**: no merge verdict exists in the API and merge rules need admin access to read, so "Looks ready" is inferred from build statuses, approvals, requested changes and open tasks. Merge conflicts are not detected.
+
 ## Architecture
 
 ```

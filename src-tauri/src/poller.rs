@@ -43,6 +43,7 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
     // Accounts that completed a poll before; only their new PRs trigger notifications, so
     // that the first successful poll of an account never floods the user.
     let mut seeded: HashSet<String> = HashSet::new();
+    let mut seeded_mine: HashSet<String> = HashSet::new();
 
     loop {
         let snapshot = app.state::<ConfigStore>().snapshot();
@@ -54,16 +55,22 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
 
         if active.is_empty() {
             publish(&app, Vec::new()).await;
+            publish_mine(&app, Vec::new()).await;
             wait_for_next_poll(IDLE_WAIT_SECS, &mut rx).await;
             continue;
         }
 
-        let results = join_all(active.iter().map(|a| async move {
-            (a, a.provider.fetch_review_prs(&a.account.repos).await)
-        }))
-        .await;
+        let (results, mine_results) = tokio::join!(
+            join_all(active.iter().map(|a| async move {
+                (a, a.provider.fetch_review_prs(&a.account.repos).await)
+            })),
+            join_all(active.iter().map(|a| async move {
+                (a, a.provider.fetch_my_prs(&a.account.repos).await)
+            })),
+        );
 
         poll_once(&app, results, &mut seeded).await;
+        poll_mine(&app, mine_results, &mut seeded_mine).await;
         wait_for_next_poll(snapshot.config.polling_interval_secs, &mut rx).await;
     }
 }
@@ -145,6 +152,68 @@ async fn poll_once(
     if !errors.is_empty() {
         let _ = app.emit("poll-error", errors.join("\n"));
     }
+}
+
+/// Same as [`poll_once`] for the user's own PRs: no badge, and notifications only for
+/// readiness/failure transitions.
+async fn poll_mine(
+    app: &AppHandle,
+    results: Vec<(&ActiveAccount, crate::error::AppResult<FetchReport>)>,
+    seeded: &mut HashSet<String>,
+) {
+    let mut fresh: Vec<PullRequest> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    let mut failed: Vec<&str> = Vec::new();
+    let mut succeeded: Vec<&str> = Vec::new();
+
+    for (account, result) in &results {
+        match result {
+            Ok(report) => {
+                // A repo that failed is not retained: the whole account failing is what we
+                // can recover from, and a partial list here is only ever missing PRs.
+                fresh.extend(report.prs.iter().cloned());
+                succeeded.push(&account.account.id);
+                for (repo, e) in &report.failed_repos {
+                    errors.push(format!("My PRs, {}/{repo}: {e}", account.account.workspace));
+                }
+            }
+            Err(e) => {
+                log::error!("Polling own PRs failed for {}: {e}", account.label());
+                errors.push(format!("My PRs, {}: {e}", account.label()));
+                failed.push(&account.account.id);
+            }
+        }
+    }
+
+    let state = app.state::<PrState>();
+    let mut current = state.mine.lock().await;
+    fresh.extend(current.iter().filter(|pr| failed.contains(&pr.account_id.as_str())).cloned());
+    fresh.sort_by(|a, b| b.updated_on.cmp(&a.updated_on));
+
+    let events: Vec<_> = notifier::my_pr_events(&current, &fresh)
+        .into_iter()
+        .filter(|(pr, _)| seeded.contains(&pr.account_id))
+        .collect();
+    notifier::notify_my_pr_events(app, &events);
+    seeded.extend(succeeded.into_iter().map(str::to_string));
+
+    *current = fresh.clone();
+    drop(current);
+    let _ = app.emit("my-prs-updated", &fresh);
+    if !errors.is_empty() {
+        let _ = app.emit("poll-error", errors.join("\n"));
+    }
+}
+
+async fn publish_mine(app: &AppHandle, prs: Vec<PullRequest>) {
+    let state = app.state::<PrState>();
+    let mut current = state.mine.lock().await;
+    if current.len() == prs.len() {
+        return;
+    }
+    *current = prs.clone();
+    drop(current);
+    let _ = app.emit("my-prs-updated", &prs);
 }
 
 /// Replaces the shared PR list without notifying (used when there is nothing to poll).

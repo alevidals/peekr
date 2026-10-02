@@ -15,6 +15,8 @@ use crate::{
 #[derive(Default)]
 pub struct PrState {
     pub prs: Mutex<Vec<PullRequest>>,
+    /// The user's own open PRs, with their merge readiness.
+    pub mine: Mutex<Vec<PullRequest>>,
 }
 
 /// Wakes the poller before its timer expires (manual refresh, settings saved).

@@ -4,6 +4,14 @@ export type Theme = "system" | "light" | "dark";
 
 export type CiStatus = "success" | "failed" | "pending";
 
+export type MergeState = "ready" | "waiting" | "blocked" | "conflicts" | "behind" | "draft" | "unknown";
+
+export interface MergeStatus {
+  state: MergeState;
+  /** Why the PR cannot be merged yet; empty when ready. */
+  blockers: string[];
+}
+
 export interface PullRequest {
   provider: ProviderKind;
   account_id: string;
@@ -23,7 +31,28 @@ export interface PullRequest {
   approvals: number;
   /** Absent when the PR has no checks or they could not be read. */
   ci_status: CiStatus | null;
+  /** Only present on the user's own PRs. */
+  merge: MergeStatus | null;
 }
+
+export type Palette = "indigo" | "graphite" | "green" | "amber" | "contrast";
+export type Density = "comfortable" | "compact";
+export type TextSize = "small" | "medium" | "large";
+
+export interface Appearance {
+  palette: Palette;
+  /** `#rrggbb` overriding the palette's accent. */
+  accent: string | null;
+  density: Density;
+  text_size: TextSize;
+}
+
+export const DEFAULT_APPEARANCE: Appearance = {
+  palette: "indigo",
+  accent: null,
+  density: "comfortable",
+  text_size: "medium",
+};
 
 export interface AccountConfig {
   id: string;
@@ -36,6 +65,7 @@ export interface AccountConfig {
 export interface Config {
   polling_interval_secs: number;
   theme: Theme;
+  appearance: Appearance;
   accounts: AccountConfig[];
 }
 

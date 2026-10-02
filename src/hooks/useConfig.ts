@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getConfig } from "../api";
-import { applyTheme } from "../theme";
-import type { Config } from "../types";
+import { applyAppearance } from "../theme";
+import { DEFAULT_APPEARANCE, type Config } from "../types";
 
 /** `undefined` while loading. */
 export function useConfig() {
@@ -10,10 +10,10 @@ export function useConfig() {
   const reload = useCallback(() => {
     getConfig()
       .then((config) => {
-        applyTheme(config.theme);
+        applyAppearance(config.theme, config.appearance);
         setConfig(config);
       })
-      .catch(() => setConfig({ polling_interval_secs: 120, theme: "system", accounts: [] }));
+      .catch(() => setConfig({ polling_interval_secs: 120, theme: "system", appearance: DEFAULT_APPEARANCE, accounts: [] }));
   }, []);
 
   useEffect(reload, [reload]);

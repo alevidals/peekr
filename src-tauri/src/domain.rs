@@ -46,6 +46,41 @@ impl CiStatus {
     }
 }
 
+/// Whether one of the user's own PRs could be merged right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MergeState {
+    /// Required checks and approvals are satisfied and nothing else blocks the merge.
+    Ready,
+    /// Nothing is wrong yet, but checks are running or reviews are still missing.
+    Waiting,
+    /// A failed check, requested changes, open tasks or another rule stops the merge.
+    Blocked,
+    Conflicts,
+    /// The branch must be updated with its base before merging.
+    Behind,
+    Draft,
+    /// The provider has not computed it yet.
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MergeStatus {
+    pub state: MergeState,
+    /// Human-readable reasons the PR is not ready; empty when it is.
+    pub blockers: Vec<String>,
+}
+
+impl MergeStatus {
+    pub fn new(state: MergeState, blockers: Vec<String>) -> Self {
+        Self { state, blockers }
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.state == MergeState::Ready
+    }
+}
+
 /// Provider-agnostic pull request. Every provider maps its API payload to this.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PullRequest {
@@ -72,6 +107,9 @@ pub struct PullRequest {
     /// `None` when the PR has no checks or they could not be read.
     #[serde(default)]
     pub ci_status: Option<CiStatus>,
+    /// Only set for the user's own PRs.
+    #[serde(default)]
+    pub merge: Option<MergeStatus>,
 }
 
 impl PullRequest {

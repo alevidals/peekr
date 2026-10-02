@@ -1,7 +1,7 @@
 import { IconSettings, IconCircleCheck, IconSearchOff } from "./Icons";
 
 interface Props {
-  type: "no-prs" | "no-matches" | "not-configured" | "loading";
+  type: "no-prs" | "no-mine" | "no-matches" | "not-configured" | "loading";
 }
 
 export function EmptyState({ type }: Props) {
@@ -38,6 +38,16 @@ export function EmptyState({ type }: Props) {
         <div className="empty-state-icon"><IconSearchOff size={24} /></div>
         <p className="empty-state-title">No matches</p>
         <p className="empty-state-text">No pull requests match your search or filters.</p>
+      </div>
+    );
+  }
+
+  if (type === "no-mine") {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon"><IconCircleCheck size={24} /></div>
+        <p className="empty-state-title">No open PRs</p>
+        <p className="empty-state-text">You have no open pull requests in the tracked accounts.</p>
       </div>
     );
   }

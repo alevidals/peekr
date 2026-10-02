@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
-import { getPullRequests, onPollError, onPrsUpdated, refreshPullRequests } from "../api";
+import {
+  getMyPullRequests,
+  getPullRequests,
+  onMyPrsUpdated,
+  onPollError,
+  onPrsUpdated,
+  refreshPullRequests,
+} from "../api";
 import type { PullRequest } from "../types";
 
 export function usePullRequests() {
   const [prs, setPrs] = useState<PullRequest[]>([]);
+  const [mine, setMine] = useState<PullRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
@@ -16,6 +24,9 @@ export function usePullRequests() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
+
+    getMyPullRequests().then(setMine).catch(console.error);
+    const unlistenMine = onMyPrsUpdated(setMine);
 
     const unlistenPrs = onPrsUpdated((data) => {
       setPrs(data);
@@ -30,6 +41,7 @@ export function usePullRequests() {
     });
 
     return () => {
+      unlistenMine.then((fn) => fn());
       unlistenPrs.then((fn) => fn());
       unlistenErr.then((fn) => fn());
     };
@@ -40,5 +52,5 @@ export function usePullRequests() {
     refreshPullRequests().catch(console.error);
   }
 
-  return { prs, loading, error, lastFetched, refresh };
+  return { prs, mine, loading, error, lastFetched, refresh };
 }

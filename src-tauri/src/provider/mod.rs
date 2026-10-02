@@ -32,6 +32,9 @@ pub trait ReviewProvider: Send + Sync {
 
     /// Open PRs in `repos` where the authenticated user is a requested reviewer.
     async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport>;
+
+    /// Open PRs authored by the authenticated user, each with its [`MergeStatus`].
+    async fn fetch_my_prs(&self, repos: &[String]) -> AppResult<FetchReport>;
 }
 
 pub fn build(client: reqwest::Client, account: &Account, token: &str) -> Arc<dyn ReviewProvider> {

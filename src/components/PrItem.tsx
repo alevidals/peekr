@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { CiStatus, PullRequest } from "../types";
+import type { CiStatus, MergeState, PullRequest } from "../types";
 import { IconBranch, IconCheck, IconMessage, IconX } from "./Icons";
 
 interface Props {
@@ -30,6 +30,29 @@ function CiBadge({ status }: { status: CiStatus }) {
       {status === "success" && <IconCheck size={10} />}
       {status === "failed" && <IconX size={10} />}
     </span>
+  );
+}
+
+const MERGE_LABEL: Record<MergeState, string> = {
+  ready: "Ready to merge",
+  waiting: "Waiting",
+  blocked: "Blocked",
+  conflicts: "Conflicts",
+  behind: "Behind base",
+  draft: "Draft",
+  unknown: "Checking…",
+};
+
+/** Bitbucket has no merge verdict, so its "ready" is an inference from checks and approvals. */
+function MergePill({ pr }: { pr: PullRequest }) {
+  const merge = pr.merge;
+  if (!merge || merge.state === "draft") return null;
+  const label = merge.state === "ready" && pr.provider === "bitbucket" ? "Looks ready" : MERGE_LABEL[merge.state];
+  return (
+    <div className={`merge-pill merge-pill--${merge.state}`} title={merge.blockers.join("\n") || label}>
+      <span className="merge-pill-label">{label}</span>
+      {merge.blockers.length > 0 && <span className="merge-pill-blockers">{merge.blockers.join(" · ")}</span>}
+    </div>
   );
 }
 
@@ -64,6 +87,7 @@ export function PrItem({ pr, index = 0 }: Props) {
             {pr.source_branch} → {pr.destination_branch}
           </span>
         </div>
+        <MergePill pr={pr} />
         <div className="pr-item-footer">
           <span className="pr-item-author">{pr.author_display_name}</span>
           <div className="pr-item-footer-right">

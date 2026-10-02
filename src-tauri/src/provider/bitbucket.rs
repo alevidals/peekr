@@ -7,7 +7,7 @@ use tokio::sync::OnceCell;
 
 use super::{FetchReport, ReviewProvider};
 use crate::{
-    domain::{CiStatus, ProviderKind, PullRequest},
+    domain::{CiStatus, MergeState, MergeStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
 };
 
@@ -87,7 +87,7 @@ impl Bitbucket {
         }
     }
 
-    async fn fetch_repo(&self, repo: &str, user_id: &str) -> AppResult<Vec<PullRequest>> {
+    async fn fetch_repo(&self, repo: &str, user_id: &str, role: Role) -> AppResult<Vec<PullRequest>> {
         let mut raws = Vec::new();
         let mut use_q = self.use_q_filter.load(Ordering::Relaxed);
         let workspace = &self.workspace;
@@ -95,7 +95,8 @@ impl Bitbucket {
         let mut url = Some(if use_q {
             // state="OPEN" must be inside q — Bitbucket ignores a standalone state= when q is present.
             format!(
-                "{API}/repositories/{workspace}/{repo}/pullrequests?pagelen=50&fields={FIELDS}&q=state%3D%22OPEN%22+AND+reviewers.account_id%3D%22{user_id}%22"
+                "{API}/repositories/{workspace}/{repo}/pullrequests?pagelen=50&fields={FIELDS}&q=state%3D%22OPEN%22+AND+{}%3D%22{user_id}%22",
+                role.q_field()
             )
         } else {
             open_prs_url(workspace, repo)
@@ -118,11 +119,12 @@ impl Bitbucket {
             let page: PagedResponse<RawPullRequest> = response.error_for_status()?.json().await?;
 
             for raw in page.values {
-                // Once approved there is nothing left to do, so it is not "pending review".
-                if raw.is_approved_by(user_id) {
-                    continue;
-                }
-                if use_q || raw.is_reviewer(user_id) {
+                let wanted = match role {
+                    // Once approved there is nothing left to do, so it is not "pending review".
+                    Role::Reviewer => !raw.is_approved_by(user_id) && (use_q || raw.is_reviewer(user_id)),
+                    Role::Author => use_q || raw.is_author(user_id),
+                };
+                if wanted {
                     raws.push(raw);
                 }
             }
@@ -131,11 +133,29 @@ impl Bitbucket {
 
         Ok(join_all(raws.into_iter().map(|raw| async move {
             let ci_status = self.ci_status(repo, raw.id).await;
+            let merge = (role == Role::Author).then(|| raw.merge_status(ci_status));
             let mut pr = raw.into_pr(&self.account_id, repo);
             pr.ci_status = ci_status;
+            pr.merge = merge;
             pr
         }))
         .await)
+    }
+}
+
+/// Which PRs of the user to look for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Role {
+    Reviewer,
+    Author,
+}
+
+impl Role {
+    fn q_field(self) -> &'static str {
+        match self {
+            Role::Reviewer => "reviewers.account_id",
+            Role::Author => "author.account_id",
+        }
     }
 }
 
@@ -150,10 +170,20 @@ impl ReviewProvider for Bitbucket {
     }
 
     async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
+        self.fetch_all(repos, Role::Reviewer).await
+    }
+
+    async fn fetch_my_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
+        self.fetch_all(repos, Role::Author).await
+    }
+}
+
+impl Bitbucket {
+    async fn fetch_all(&self, repos: &[String], role: Role) -> AppResult<FetchReport> {
         let user_id = self.user_id().await?;
 
         let results = join_all(repos.iter().map(|repo| async move {
-            (repo.clone(), self.fetch_repo(repo, user_id).await)
+            (repo.clone(), self.fetch_repo(repo, user_id, role).await)
         }))
         .await;
 
@@ -198,6 +228,7 @@ struct UserLinks {
 
 #[derive(Debug, Deserialize)]
 struct Author {
+    account_id: Option<String>,
     display_name: Option<String>,
     links: Option<UserLinks>,
 }
@@ -227,6 +258,8 @@ struct Participant {
     role: String,
     #[serde(default)]
     approved: bool,
+    /// `approved`, `changes_requested` or absent.
+    state: Option<String>,
     user: ParticipantUser,
 }
 
@@ -260,9 +293,56 @@ struct RawPullRequest {
     participants: Option<Vec<Participant>>,
     #[serde(default)]
     draft: bool,
+    task_count: Option<u32>,
+}
+
+/// Bitbucket exposes no "mergeable" verdict and the merge rules need admin access to read,
+/// so readiness is inferred from what any user can see: build statuses, approvals, requested
+/// changes and open tasks. Merge conflicts are not detectable this way.
+fn assess(draft: bool, approvals: u32, changes_requested: bool, open_tasks: u32, ci: Option<CiStatus>) -> MergeStatus {
+    if draft {
+        return MergeStatus::new(MergeState::Draft, vec![]);
+    }
+    let mut blockers = Vec::new();
+    if changes_requested {
+        blockers.push("Changes requested".to_string());
+    }
+    if ci == Some(CiStatus::Failed) {
+        blockers.push("Pipeline failed".to_string());
+    }
+    if open_tasks > 0 {
+        blockers.push(format!("{open_tasks} open {}", if open_tasks == 1 { "task" } else { "tasks" }));
+    }
+    if !blockers.is_empty() {
+        return MergeStatus::new(MergeState::Blocked, blockers);
+    }
+    let mut waiting = Vec::new();
+    if ci == Some(CiStatus::Pending) {
+        waiting.push("Pipeline running".to_string());
+    }
+    if approvals == 0 {
+        waiting.push("Waiting for approval".to_string());
+    }
+    if !waiting.is_empty() {
+        return MergeStatus::new(MergeState::Waiting, waiting);
+    }
+    MergeStatus::new(MergeState::Ready, vec![])
 }
 
 impl RawPullRequest {
+    fn is_author(&self, user_id: &str) -> bool {
+        self.author.account_id.as_deref() == Some(user_id)
+    }
+
+    fn merge_status(&self, ci: Option<CiStatus>) -> MergeStatus {
+        let changes_requested = self
+            .participants
+            .iter()
+            .flatten()
+            .any(|p| p.state.as_deref() == Some("changes_requested"));
+        assess(self.draft, self.approvals(), changes_requested, self.task_count.unwrap_or(0), ci)
+    }
+
     fn participants_of<'a>(&'a self, user_id: &'a str) -> impl Iterator<Item = &'a Participant> {
         self.participants
             .iter()
@@ -309,6 +389,7 @@ impl RawPullRequest {
             draft: self.draft,
             approvals,
             ci_status: None,
+            merge: None,
         }
     }
 }
@@ -359,6 +440,39 @@ mod tests {
         assert_eq!(state("INPROGRESS"), CiStatus::Pending);
         assert_eq!(state("FAILED"), CiStatus::Failed);
         assert_eq!(state("STOPPED"), CiStatus::Failed);
+    }
+
+    #[test]
+    fn assesses_merge_readiness() {
+        use CiStatus::*;
+        use MergeState::*;
+        let state = |draft, approvals, changes, tasks, ci| assess(draft, approvals, changes, tasks, ci).state;
+        assert_eq!(state(true, 2, false, 0, Some(Success)), Draft);
+        assert_eq!(state(false, 1, false, 0, Some(Success)), Ready);
+        assert_eq!(state(false, 1, false, 0, None), Ready);
+        assert_eq!(state(false, 0, false, 0, Some(Success)), MergeState::Waiting);
+        assert_eq!(state(false, 1, false, 0, Some(Pending)), MergeState::Waiting);
+        assert_eq!(state(false, 1, false, 0, Some(Failed)), Blocked);
+        assert_eq!(state(false, 1, true, 0, Some(Success)), Blocked);
+        assert_eq!(state(false, 1, false, 2, Some(Success)), Blocked);
+        // A blocker wins over a missing approval.
+        assert_eq!(assess(false, 0, false, 1, None).blockers, vec!["1 open task"]);
+    }
+
+    #[test]
+    fn reads_author_and_changes_requested() {
+        let pr = parse(
+            r#"{"id":1,"title":"t","created_on":"a","updated_on":"b","task_count":2,
+                "author":{"account_id":"me"},
+                "source":{"branch":{"name":"s"}},"destination":{"branch":{"name":"d"}},
+                "links":{"html":{"href":"h"}},
+                "participants":[{"role":"REVIEWER","approved":false,"state":"changes_requested","user":{"account_id":"x"}}]}"#,
+        );
+        assert!(pr.is_author("me"));
+        assert!(!pr.is_author("x"));
+        let status = pr.merge_status(Some(CiStatus::Success));
+        assert_eq!(status.state, MergeState::Blocked);
+        assert_eq!(status.blockers, vec!["Changes requested", "2 open tasks"]);
     }
 
     #[test]

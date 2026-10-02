@@ -112,16 +112,6 @@ pub fn toggle(app: &AppHandle) {
     show_focused(&window);
 }
 
-/// Opens the popover under the tray icon if it is not already visible.
-pub fn show(app: &AppHandle) {
-    let visible = app
-        .get_webview_window(LABEL)
-        .is_some_and(|w| w.is_visible().unwrap_or(false));
-    if !visible {
-        toggle(app);
-    }
-}
-
 #[cfg(target_os = "macos")]
 fn show_focused(window: &WebviewWindow) {
     // Call activate + makeKeyAndOrderFront: synchronously in the same run-loop turn,

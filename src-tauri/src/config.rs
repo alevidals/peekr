@@ -48,6 +48,56 @@ pub enum Theme {
     Dark,
 }
 
+/// Colour preset; each one defines its own light and dark variants in the frontend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Palette {
+    #[default]
+    Indigo,
+    Graphite,
+    Green,
+    Amber,
+    Contrast,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Density {
+    #[default]
+    Comfortable,
+    Compact,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TextSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+/// Look of the popover on top of the light/dark [`Theme`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Appearance {
+    pub palette: Palette,
+    /// `#rrggbb` overriding the palette's accent; `None` keeps the palette's own.
+    pub accent: Option<String>,
+    pub density: Density,
+    pub text_size: TextSize,
+}
+
+impl Appearance {
+    /// Drops an accent that is not a `#rrggbb` colour instead of failing the whole save.
+    pub fn sanitized(mut self) -> Self {
+        self.accent = self.accent.filter(|c| {
+            c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|ch| ch.is_ascii_hexdigit())
+        });
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub version: u32,
@@ -56,6 +106,8 @@ pub struct AppConfig {
     /// Added after v2 shipped: older files simply lack it.
     #[serde(default)]
     pub theme: Theme,
+    #[serde(default)]
+    pub appearance: Appearance,
 }
 
 impl Default for AppConfig {
@@ -65,6 +117,7 @@ impl Default for AppConfig {
             polling_interval_secs: DEFAULT_POLL_SECS,
             accounts: Vec::new(),
             theme: Theme::default(),
+            appearance: Appearance::default(),
         }
     }
 }
@@ -217,6 +270,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(dark.theme, Theme::Dark);
+    }
+
+    #[test]
+    fn appearance_defaults_and_validates_accent() {
+        let config: AppConfig =
+            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#).unwrap();
+        assert_eq!(config.appearance, Appearance::default());
+
+        let partial: Appearance = serde_json::from_str(r##"{"palette":"green","accent":"#12ab9F"}"##).unwrap();
+        assert_eq!((partial.palette, partial.density), (Palette::Green, Density::Comfortable));
+        assert_eq!(partial.sanitized().accent.as_deref(), Some("#12ab9F"));
+
+        for bad in ["red", "#12345", "#12345g", "12ab9f1", "url(x)"] {
+            let a = Appearance { accent: Some(bad.into()), ..Default::default() };
+            assert_eq!(a.sanitized().accent, None, "{bad}");
+        }
     }
 
     #[test]
