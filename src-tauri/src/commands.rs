@@ -167,7 +167,21 @@ pub fn hide_settings_window(app: AppHandle) -> AppResult<()> {
     if let Some(win) = app.get_webview_window("settings") {
         win.hide()?;
     }
+    set_dock_visible(&app, false);
     Ok(())
+}
+
+/// Shows the app in the Dock (and app switcher) while the settings window is open,
+/// and goes back to a pure tray app when it is closed. No-op outside macOS.
+pub fn set_dock_visible(app: &AppHandle, visible: bool) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, visible);
 }
 
 #[tauri::command]
@@ -191,11 +205,9 @@ pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
             .build()?,
     };
 
+    // Regular policy must be set before focusing so the app activates with a Dock icon.
+    set_dock_visible(&app, true);
     win.show()?;
     win.set_focus()?;
-    // set_focus() briefly activates the app as foreground on macOS (Dock icon appears).
-    // Re-assert Accessory policy immediately so the app never shows in the Dock.
-    #[cfg(target_os = "macos")]
-    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     Ok(())
 }

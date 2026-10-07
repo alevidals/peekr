@@ -49,6 +49,14 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // Closing settings with the window's own close button also drops the Dock icon.
+            if window.label() == "settings"
+                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
+            {
+                commands::set_dock_visible(window.app_handle(), false);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
