@@ -194,15 +194,22 @@ pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
     let win = match app.get_webview_window("settings") {
         Some(w) => w,
         // Window was closed/destroyed — recreate it
-        None => WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
-            .title("peekr — Settings")
-            .inner_size(480.0, 640.0)
-            .resizable(false)
-            .decorations(true)
-            .always_on_top(false)
-            .skip_taskbar(false)
-            .visible(false)
-            .build()?,
+        None => {
+            let builder = WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
+                .title("peekr — Settings")
+                .inner_size(480.0, 640.0)
+                .resizable(false)
+                .decorations(true)
+                .always_on_top(false)
+                .skip_taskbar(false)
+                .visible(false);
+            // Content extends under the title bar; only the traffic lights remain.
+            #[cfg(target_os = "macos")]
+            let builder = builder
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true);
+            builder.build()?
+        }
     };
 
     // Regular policy must be set before focusing so the app activates with a Dock icon.

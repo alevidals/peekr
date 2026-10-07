@@ -71,7 +71,7 @@ export function PopoverWindow() {
     <div key={animKey} className={`popover${closing ? " popover--closing" : ""}`}>
       <header className="popover-header">
         <div className="popover-brand">
-          <span className="popover-logo" />
+          <img className="popover-logo" src="/app-icon.png" alt="" />
           <span className="popover-title">peekr</span>
         </div>
         <div className="popover-header-actions">

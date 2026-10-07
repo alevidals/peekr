@@ -1,17 +1,21 @@
-use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use image::Rgba;
-use imageproc::drawing::{draw_filled_circle_mut, draw_text_mut};
+use imageproc::drawing::draw_filled_circle_mut;
 
 const BASE_ICON: &[u8] = include_bytes!("../../icons/tray-icon.png");
-const BADGE_FONT: &[u8] = include_bytes!("../../fonts/badge-font.ttf");
 const ICON_SIZE: u32 = 44;
 
+/// True in debug builds (`tauri dev`): the tray icon gets a dev marker and can't be a template.
+pub const DEV: bool = cfg!(debug_assertions);
+
 pub fn plain_icon() -> tauri::Result<tauri::image::Image<'static>> {
+    if DEV {
+        return Ok(tauri::image::Image::new_owned(render(false), ICON_SIZE, ICON_SIZE));
+    }
     tauri::image::Image::from_bytes(BASE_ICON)
 }
 
-pub fn badge_icon(count: u32) -> tauri::image::Image<'static> {
-    tauri::image::Image::new_owned(render_badge(count), ICON_SIZE, ICON_SIZE)
+pub fn badge_icon() -> tauri::image::Image<'static> {
+    tauri::image::Image::new_owned(render(true), ICON_SIZE, ICON_SIZE)
 }
 
 fn is_dark_mode() -> bool {
@@ -42,7 +46,7 @@ fn is_dark_mode() -> bool {
     false
 }
 
-fn render_badge(count: u32) -> Vec<u8> {
+fn render(badge: bool) -> Vec<u8> {
     let base = image::load_from_memory_with_format(BASE_ICON, image::ImageFormat::Png)
         .unwrap_or_else(|_| image::DynamicImage::new_rgba8(ICON_SIZE, ICON_SIZE));
     let mut img = base.to_rgba8();
@@ -66,11 +70,16 @@ fn render_badge(count: u32) -> Vec<u8> {
         }
     }
 
-    let label = if count > 99 {
-        "99+".to_string()
-    } else {
-        count.to_string()
-    };
+    if DEV {
+        // Orange dev marker in the bottom-right corner
+        let r: i32 = 7;
+        let c = (ICON_SIZE as i32) - r - 1;
+        draw_filled_circle_mut(&mut img, (c, c), r, Rgba([255u8, 149, 0, 255]));
+    }
+
+    if !badge {
+        return img.into_raw();
+    }
 
     // Badge circle in top-right corner
     let badge_r: i32 = 9;
@@ -78,32 +87,5 @@ fn render_badge(count: u32) -> Vec<u8> {
     let cy = badge_r + 1;
     draw_filled_circle_mut(&mut img, (cx, cy), badge_r, Rgba([255u8, 59, 48, 255]));
 
-    // Draw white text centred in badge
-    if let Ok(font) = FontRef::try_from_slice(BADGE_FONT) {
-        let scale = PxScale::from(10.0);
-        let text_width = measure_text_width(&font, &label, scale);
-        let text_x = cx - (text_width as i32 / 2);
-        let text_y = cy - 6;
-        draw_text_mut(
-            &mut img,
-            Rgba([255u8, 255, 255, 255]),
-            text_x,
-            text_y,
-            scale,
-            &font,
-            &label,
-        );
-    }
-
     img.into_raw()
-}
-
-fn measure_text_width(font: &FontRef, text: &str, scale: PxScale) -> f32 {
-    let scaled = font.as_scaled(scale);
-    text.chars()
-        .map(|c| {
-            let glyph_id = font.glyph_id(c);
-            scaled.h_advance(glyph_id)
-        })
-        .sum()
 }

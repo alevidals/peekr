@@ -32,6 +32,8 @@
         "height": 640,
         "visible": false,
         "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "skipTaskbar": false,
         "alwaysOnTop": false,
         "resizable": false,

@@ -16,10 +16,10 @@ pub fn create_tray(app: &tauri::App) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(badge::plain_icon()?)
-        .icon_as_template(true)
+        .icon_as_template(!badge::DEV)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("peekr")
+        .tooltip(if badge::DEV { "peekr (dev)" } else { "peekr" })
         .on_menu_event(|app, event| {
             if event.id() == "quit" {
                 app.exit(0);
@@ -51,13 +51,13 @@ pub fn update_badge(app: &AppHandle, count: u32) {
     if count == 0 {
         if let Ok(icon) = badge::plain_icon() {
             let _ = tray.set_icon(Some(icon));
-            let _ = tray.set_icon_as_template(true);
+            let _ = tray.set_icon_as_template(!badge::DEV);
         }
-        let _ = tray.set_tooltip(Some("peekr"));
+        let _ = tray.set_tooltip(Some(if badge::DEV { "peekr (dev)" } else { "peekr" }));
         return;
     }
 
-    let _ = tray.set_icon(Some(badge::badge_icon(count)));
+    let _ = tray.set_icon(Some(badge::badge_icon()));
     let _ = tray.set_icon_as_template(false);
 
     let tooltip = if count == 1 {
