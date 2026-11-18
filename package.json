@@ -6,8 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "rust:check": "cd src-tauri && cargo check --all-targets",
+    "rust:test": "cd src-tauri && cargo test",
+    "rust:lint": "cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
+    "check": "bun run typecheck && bun run lint && bun run rust:lint && bun run rust:test && bun run build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -17,11 +23,17 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
     "vite": "^8.0.16"
   }
 }
