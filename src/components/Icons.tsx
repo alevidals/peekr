@@ -166,3 +166,26 @@ export function IconSearchOff({ size = 28, className }: IconProps) {
     size, className
   );
 }
+
+export function IconAccount({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <circle cx="9" cy="7" r="4" />
+      <path d="M2 21v-1.5A4.5 4.5 0 0 1 6.5 15h5A4.5 4.5 0 0 1 16 19.5V21" />
+      <path d="M17 4.5a3.5 3.5 0 0 1 0 6.5M18 15a4 4 0 0 1 4 4v2" />
+    </>,
+    size, className
+  );
+}
+
+export function IconPalette({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <path d="M12 3a9 9 0 1 0 0 18h1.4a2.1 2.1 0 0 0 0-4.2h-.6a1.8 1.8 0 0 1 0-3.6h3.4A5.8 5.8 0 0 0 21 7.4 5.6 5.6 0 0 0 15.4 3Z" />
+      <circle cx="7.5" cy="11" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="7.3" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="14.4" cy="7.3" r=".9" fill="currentColor" stroke="none" />
+    </>,
+    size, className
+  );
+}

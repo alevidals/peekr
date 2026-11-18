@@ -14,6 +14,9 @@
 
 ### Changed
 
+- Settings is now a larger window (820 × 660) with a header, a vertical sidebar for
+  Cuentas, General and Apariencia, a section header and a full-width footer. The theme
+  picker sits in a three-column grid; density and text size follow below.
 - The tray icon is a template image, so macOS tints it from the real menu bar background.
   The red badge and the orange dev marker are drawn as layers on top and keep their colours.
 - PR rows and repo groups are memoized, search terms are parsed once and filtering uses a

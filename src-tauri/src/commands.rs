@@ -211,8 +211,8 @@ pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
         // Window was closed/destroyed — recreate it
         None => {
             let builder = WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("/".into()))
-                .title("peekr — Settings")
-                .inner_size(480.0, 640.0)
+                .title("peekr — Ajustes")
+                .inner_size(820.0, 660.0)
                 .resizable(false)
                 .decorations(true)
                 .always_on_top(false)

@@ -27,9 +27,9 @@
       },
       {
         "label": "settings",
-        "title": "peekr — Settings",
-        "width": 480,
-        "height": 640,
+        "title": "peekr — Ajustes",
+        "width": 820,
+        "height": 660,
         "visible": false,
         "decorations": true,
         "titleBarStyle": "Overlay",

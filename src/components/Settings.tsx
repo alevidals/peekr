@@ -18,7 +18,7 @@ import {
   isDraftComplete,
   type AccountDraft,
 } from "../drafts";
-import { IconPlus } from "./Icons";
+import { IconAccount, IconPalette, IconPlus, IconSettings } from "./Icons";
 import { AccountForm } from "./AccountForm";
 import "./Settings.css";
 
@@ -36,6 +36,34 @@ const TEXT_SIZES: { value: TextSize; label: string }[] = [
   { value: "small", label: "Pequeño" },
   { value: "medium", label: "Medio" },
   { value: "large", label: "Grande" },
+];
+
+type Section = "accounts" | "general" | "appearance";
+
+const SECTIONS: {
+  id: Section;
+  label: string;
+  description: string;
+  icon: typeof IconSettings;
+}[] = [
+  {
+    id: "accounts",
+    label: "Cuentas",
+    description: "Conecta tus cuentas y elige qué repositorios vigilar.",
+    icon: IconAccount,
+  },
+  {
+    id: "general",
+    label: "General",
+    description: "Frecuencia de consulta y arranque con el sistema.",
+    icon: IconSettings,
+  },
+  {
+    id: "appearance",
+    label: "Apariencia",
+    description: "Tema, densidad y tamaño del texto.",
+    icon: IconPalette,
+  },
 ];
 
 const MIN_POLLING = 30;
@@ -65,6 +93,7 @@ export function Settings({ onSaved, onClose }: Props) {
   // Per-account messages, keyed by draft key; "" is the form-level message.
   const [messages, setMessages] = useState<Record<string, Message | null>>({});
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [section, setSection] = useState<Section>("accounts");
 
   useEffect(() => {
     let mounted = true;
@@ -195,177 +224,247 @@ export function Settings({ onSaved, onClose }: Props) {
 
   const canSave = drafts.every(isDraftComplete);
   const formMessage = messages[""];
+  const currentSection = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
+
+  function onNavKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    let next = index;
+    if (e.key === "ArrowDown") next = (index + 1) % SECTIONS.length;
+    if (e.key === "ArrowUp") next = (index - 1 + SECTIONS.length) % SECTIONS.length;
+    if (e.key === "Home") next = 0;
+    if (e.key === "End") next = SECTIONS.length - 1;
+    const id = SECTIONS[next].id;
+    setSection(id);
+    document.getElementById(`settings-tab-${id}`)?.focus();
+  }
 
   return (
     <div className="settings">
-      <div className="settings-body">
-        <header className="settings-hero">
+      <header className="settings-header" data-tauri-drag-region>
+        <img className="settings-logo" src="/app-icon.png" alt="" />
+        <div className="settings-header-text">
           <h1>Ajustes</h1>
-          <p>Conecta tus cuentas y elige qué repositorios vigilar.</p>
-        </header>
+          <p>Cuentas, preferencias y apariencia de peekr.</p>
+        </div>
+      </header>
 
-        <div className="section">
-          <div className="section-head">
-            <h2>Cuentas</h2>
-            <span className="section-count">{drafts.length}</span>
-          </div>
-
-          {drafts.map((draft) => (
-            <AccountForm
-              key={draft.key}
-              draft={draft}
-              defaultOpen={drafts.length === 1 || !isDraftComplete(draft)}
-              message={messages[draft.key] ?? null}
-              validating={validatingKey === draft.key}
-              onChange={handleDraftChange}
-              onValidate={handleValidate}
-              onRemove={handleRemove}
-            />
-          ))}
-
-          <button
-            type="button"
-            className="add-account"
-            onClick={() => setDrafts((ds) => [...ds, blankDraft()])}
+      <div className="settings-body">
+        <aside className="settings-sidebar">
+          <div
+            className="settings-nav"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label="Secciones de ajustes"
           >
-            <IconPlus size={14} /> Añadir cuenta
-          </button>
-        </div>
-
-        <div className="section">
-          <div className="section-head">
-            <h2>General</h2>
-          </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title" id="polling-label">Frecuencia de consulta</span>
-              <span className="hint">Cada cuánto se buscan PRs nuevas (30–3600 s)</span>
-            </div>
-            <div className="input-suffix">
-              <input
-                type="number"
-                aria-labelledby="polling-label"
-                value={pollingText}
-                min={MIN_POLLING}
-                max={MAX_POLLING}
-                inputMode="numeric"
-                onChange={(e) => setPollingText(e.target.value)}
-                onBlur={() => setPollingText(String(clampPolling(pollingText)))}
-              />
-              <span>s</span>
-            </div>
-          </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title">Iniciar con el sistema</span>
-              <span className="hint">Abre peekr automáticamente al iniciar sesión</span>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autostart}
-              aria-label="Iniciar con el sistema"
-              className={`switch${autostart ? " switch--on" : ""}`}
-              onClick={() => setAutostart((v) => !v)}
-            />
-          </div>
-        </div>
-
-        <div className="section">
-          <div className="section-head">
-            <h2>Apariencia</h2>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => changeLook("system", DEFAULT_APPEARANCE)}
-            >
-              Restablecer
-            </button>
-          </div>
-          <div className="theme-grid" role="radiogroup" aria-label="Tema">
-            {THEME_OPTIONS.map((option) => {
-              const selected = selectedTheme === option.value;
+            {SECTIONS.map((item, index) => {
+              const Icon = item.icon;
+              const selected = section === item.id;
               return (
-                <label
-                  key={option.value}
-                  className={`theme-card${selected ? " theme-card--active" : ""}`}
-                  title={option.description}
+                <button
+                  key={item.id}
+                  id={`settings-tab-${item.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls="settings-panel"
+                  aria-label={item.id === "accounts" ? `Cuentas, ${drafts.length}` : undefined}
+                  tabIndex={selected ? 0 : -1}
+                  className="settings-nav-item"
+                  onClick={() => setSection(item.id)}
+                  onKeyDown={(e) => onNavKeyDown(e, index)}
                 >
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={option.value}
-                    checked={selected}
-                    onChange={() => chooseTheme(option)}
-                    className="sr-only"
-                  />
-                  <span
-                    className="theme-preview"
-                    style={{ background: option.preview.background }}
-                    aria-hidden="true"
-                  >
-                    <span className="theme-preview-dot" style={{ background: option.preview.accent }} />
-                    <span className="theme-preview-line" style={{ background: option.preview.foreground }} />
-                  </span>
-                  <span className="theme-label">{option.label}</span>
-                  <span className="theme-description">{option.description}</span>
-                </label>
+                  <Icon size={15} className="settings-nav-icon" />
+                  <span>{item.label}</span>
+                  {item.id === "accounts" && (
+                    <span className="settings-nav-count">{drafts.length}</span>
+                  )}
+                </button>
               );
             })}
           </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title" id="density-label">Densidad</span>
-              <span className="hint">Cuánto espacio ocupa cada PR</span>
-            </div>
-            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="density-label">
-              {DENSITIES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={appearance.density === value}
-                  className={`segmented-item${appearance.density === value ? " segmented-item--active" : ""}`}
-                  onClick={() => patchAppearance({ density: value })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title" id="text-size-label">Tamaño del texto</span>
-              <span className="hint">En la lista de PRs</span>
-            </div>
-            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="text-size-label">
-              {TEXT_SIZES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={appearance.text_size === value}
-                  className={`segmented-item${appearance.text_size === value ? " segmented-item--active" : ""}`}
-                  onClick={() => patchAppearance({ text_size: value })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        <p className="settings-credit">
-          Hecho con ♥ por{" "}
-          <button type="button" onClick={() => openUrl("https://github.com/alevidals")}>
-            alevidals
-          </button>
-        </p>
+          <div className="settings-sidebar-footer">
+            Hecho con ♥ por{" "}
+            <button type="button" onClick={() => openUrl("https://github.com/alevidals")}>
+              alevidals
+            </button>
+          </div>
+        </aside>
+
+        <main className="settings-main">
+          <div
+            className="settings-content"
+            id="settings-panel"
+            role="tabpanel"
+            aria-labelledby={`settings-tab-${section}`}
+          >
+            <div className="settings-section-head">
+              <div>
+                <h2>{currentSection.label}</h2>
+                <p>{currentSection.description}</p>
+              </div>
+              {section === "appearance" && (
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => changeLook("system", DEFAULT_APPEARANCE)}
+                >
+                  Restablecer
+                </button>
+              )}
+            </div>
+
+            {section === "accounts" && (
+              <div className="settings-stack">
+                {drafts.map((draft) => (
+                  <AccountForm
+                    key={draft.key}
+                    draft={draft}
+                    defaultOpen={drafts.length === 1 || !isDraftComplete(draft)}
+                    message={messages[draft.key] ?? null}
+                    validating={validatingKey === draft.key}
+                    onChange={handleDraftChange}
+                    onValidate={handleValidate}
+                    onRemove={handleRemove}
+                  />
+                ))}
+
+                <button
+                  type="button"
+                  className="add-account"
+                  onClick={() => setDrafts((ds) => [...ds, blankDraft()])}
+                >
+                  <IconPlus size={14} /> Añadir cuenta
+                </button>
+              </div>
+            )}
+
+            {section === "general" && (
+              <div className="settings-stack">
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title" id="polling-label">Frecuencia de consulta</span>
+                    <span className="hint">Cada cuánto se buscan PRs nuevas (30–3600 s)</span>
+                  </div>
+                  <div className="input-suffix">
+                    <input
+                      type="number"
+                      aria-labelledby="polling-label"
+                      value={pollingText}
+                      min={MIN_POLLING}
+                      max={MAX_POLLING}
+                      inputMode="numeric"
+                      onChange={(e) => setPollingText(e.target.value)}
+                      onBlur={() => setPollingText(String(clampPolling(pollingText)))}
+                    />
+                    <span>s</span>
+                  </div>
+                </div>
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title">Iniciar con el sistema</span>
+                    <span className="hint">Abre peekr automáticamente al iniciar sesión</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autostart}
+                    aria-label="Iniciar con el sistema"
+                    className={`switch${autostart ? " switch--on" : ""}`}
+                    onClick={() => setAutostart((v) => !v)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {section === "appearance" && (
+              <div className="settings-stack">
+                <div className="theme-grid" role="radiogroup" aria-label="Tema">
+                  {THEME_OPTIONS.map((option) => {
+                    const selected = selectedTheme === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`theme-card${selected ? " theme-card--active" : ""}`}
+                        title={option.description}
+                      >
+                        <input
+                          type="radio"
+                          name="theme"
+                          value={option.value}
+                          checked={selected}
+                          onChange={() => chooseTheme(option)}
+                          className="sr-only"
+                        />
+                        <span
+                          className="theme-preview"
+                          style={{ background: option.preview.background }}
+                          aria-hidden="true"
+                        >
+                          <span className="theme-preview-dot" style={{ background: option.preview.accent }} />
+                          <span className="theme-preview-line" style={{ background: option.preview.foreground }} />
+                        </span>
+                        <span className="theme-label">{option.label}</span>
+                        <span className="theme-description">{option.description}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title" id="density-label">Densidad</span>
+                    <span className="hint">Cuánto espacio ocupa cada PR</span>
+                  </div>
+                  <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="density-label">
+                    {DENSITIES.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={appearance.density === value}
+                        className={`segmented-item${appearance.density === value ? " segmented-item--active" : ""}`}
+                        onClick={() => patchAppearance({ density: value })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title" id="text-size-label">Tamaño del texto</span>
+                    <span className="hint">En la lista de PRs</span>
+                  </div>
+                  <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="text-size-label">
+                    {TEXT_SIZES.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={appearance.text_size === value}
+                        className={`segmented-item${appearance.text_size === value ? " segmented-item--active" : ""}`}
+                        onClick={() => patchAppearance({ text_size: value })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
       </div>
 
       <footer className="settings-footer">
         {formMessage ? (
-          <p className={`message message--${formMessage.type}`} role={formMessage.type === "error" ? "alert" : "status"}>
+          <p
+            className={`message message--${formMessage.type}`}
+            role={formMessage.type === "error" ? "alert" : "status"}
+          >
             {formMessage.text}
           </p>
         ) : (
