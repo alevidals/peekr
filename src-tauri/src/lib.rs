@@ -29,7 +29,7 @@ pub fn run() {
         .setup(|app| {
             // Keep the app as a pure tray/accessory app — no Dock icon, no menu-bar
             // app-name slot.  Info.plist sets LSUIElement for the bundle, but the
-            // runtime call is needed so dev mode (pnpm tauri dev) behaves the same way.
+            // runtime call is needed so dev mode (bun run tauri dev) behaves the same way.
             #[cfg(target_os = "macos")]
             let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 

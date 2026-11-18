@@ -35,7 +35,7 @@ thiserror = "2"
 async-trait = "0.1"
 futures = "0.3"
 uuid = { version = "1", features = ["v4", "serde"] }
-keyring = { version = "3", features = ["apple-native", "windows-native"] }
+keyring = "=4.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"

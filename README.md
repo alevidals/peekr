@@ -9,9 +9,9 @@ Only PRs still waiting on you are listed: Bitbucket PRs you already approved are
 ## Development
 
 ```sh
-pnpm install
-pnpm tauri dev      # dev mode
-pnpm tauri build    # production bundle
+bun install
+bun run tauri dev      # dev mode
+bun run tauri build    # production bundle
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
