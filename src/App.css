@@ -22,6 +22,8 @@
   --warning-soft: rgba(229, 160, 0, 0.14);
   --warning-ink: #7a5200;
   --on-strong: #ffffff;
+  --on-success: #ffffff;
+  --on-danger: #ffffff;
   --knob: #ffffff;
   --knob-shadow: rgba(0, 0, 0, 0.3);
   --brand-bitbucket: #2684ff;
@@ -60,6 +62,8 @@
     --warning-soft: rgba(229, 160, 0, 0.16);
     --warning-ink: #f5c451;
     --on-strong: #ffffff;
+    --on-success: #0e0f14;
+    --on-danger: #0e0f14;
     --knob: #ffffff;
     --knob-shadow: rgba(0, 0, 0, 0.45);
     --brand-bitbucket: #2684ff;
@@ -94,6 +98,8 @@
   --warning-soft: rgba(229, 160, 0, 0.16);
   --warning-ink: #f5c451;
   --on-strong: #ffffff;
+  --on-success: #0e0f14;
+  --on-danger: #0e0f14;
   --knob: #ffffff;
   --knob-shadow: rgba(0, 0, 0, 0.45);
   --brand-bitbucket: #2684ff;
@@ -644,10 +650,12 @@ textarea:focus-visible {
 
 .ci-badge--success {
   background: var(--success);
+  color: var(--on-success);
 }
 
 .ci-badge--failed {
   background: var(--danger);
+  color: var(--on-danger);
 }
 
 .ci-badge--pending {

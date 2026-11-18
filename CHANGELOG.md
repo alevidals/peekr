@@ -8,6 +8,9 @@
   any desktop without switching Spaces, and keeps keyboard focus.
 - `Esc` hides the popover. `/` still opens the search from anywhere.
 - The popover closes when switching desktop, instead of following the user.
+- Theme picker with System, Light and Dark plus the themes shared with sftply: One Dark,
+  Gruvbox Dark, Gruvbox Light, Nord, Dracula, Solarized Light, Tokyo Night and Catppuccin
+  Mocha. Each one carries its full palette and pins its own light/dark scheme.
 
 ### Changed
 

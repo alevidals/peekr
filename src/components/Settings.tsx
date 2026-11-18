@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { getConfig, saveConfig, validateCredentials } from "../api";
-import { applyAppearance, PALETTES, paletteAccent } from "../theme";
+import { applyAppearance } from "../theme";
 import {
   DEFAULT_APPEARANCE,
   type Appearance,
   type Density,
-  type Palette,
   type TextSize,
   type Theme,
 } from "../types";
+import { THEME_OPTIONS, type ThemeOption } from "../themes";
 import {
   blankDraft,
   configToDrafts,
@@ -26,12 +26,6 @@ interface Props {
   onSaved: () => void;
   onClose?: () => void;
 }
-
-const THEMES: { value: Theme; label: string }[] = [
-  { value: "system", label: "Sistema" },
-  { value: "light", label: "Claro" },
-  { value: "dark", label: "Oscuro" },
-];
 
 const DENSITIES: { value: Density; label: string }[] = [
   { value: "comfortable", label: "Cómoda" },
@@ -156,8 +150,13 @@ export function Settings({ onSaved, onClose }: Props) {
     setAppearance(nextAppearance);
     applyAppearance(nextTheme, nextAppearance);
   }
-  const changeTheme = (next: Theme) => changeLook(next, appearance);
   const patchAppearance = (patch: Partial<Appearance>) => changeLook(theme, { ...appearance, ...patch });
+  // A named palette pins its own light/dark scheme; the default palette follows `theme`.
+  const selectedTheme = THEME_OPTIONS.some((option) => option.value === appearance.palette)
+    ? appearance.palette
+    : theme;
+  const chooseTheme = (option: ThemeOption) =>
+    changeLook(option.theme, { ...appearance, palette: option.palette, accent: null });
 
   function handleClose() {
     if (savedTimer.current) {
@@ -283,66 +282,36 @@ export function Settings({ onSaved, onClose }: Props) {
               Restablecer
             </button>
           </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title" id="theme-label">Tema</span>
-              <span className="hint">Apariencia de peekr</span>
-            </div>
-            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="theme-label">
-              {THEMES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={theme === value}
-                  className={`segmented-item${theme === value ? " segmented-item--active" : ""}`}
-                  onClick={() => changeTheme(value)}
+          <div className="theme-grid" role="radiogroup" aria-label="Tema">
+            {THEME_OPTIONS.map((option) => {
+              const selected = selectedTheme === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`theme-card${selected ? " theme-card--active" : ""}`}
+                  title={option.description}
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title" id="palette-label">Paleta</span>
-              <span className="hint">Colores base de peekr</span>
-            </div>
-            <div className="swatches" role="radiogroup" aria-labelledby="palette-label">
-              {(Object.keys(PALETTES) as Palette[]).map((palette) => (
-                <button
-                  key={palette}
-                  type="button"
-                  role="radio"
-                  aria-checked={appearance.palette === palette}
-                  aria-label={PALETTES[palette].label}
-                  title={PALETTES[palette].label}
-                  className={`swatch${appearance.palette === palette ? " swatch--active" : ""}`}
-                  style={{ background: paletteAccent(palette, theme) }}
-                  onClick={() => patchAppearance({ palette, accent: null })}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="card row">
-            <div className="row-text">
-              <span className="row-title">Color de acento</span>
-              <span className="hint">Sustituye al de la paleta</span>
-            </div>
-            <div className="swatches">
-              {appearance.accent && (
-                <button type="button" className="link-btn" onClick={() => patchAppearance({ accent: null })}>
-                  Quitar
-                </button>
-              )}
-              <input
-                type="color"
-                className="accent-input"
-                aria-label="Color de acento"
-                value={appearance.accent ?? paletteAccent(appearance.palette, theme)}
-                onChange={(e) => patchAppearance({ accent: e.target.value })}
-              />
-            </div>
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={option.value}
+                    checked={selected}
+                    onChange={() => chooseTheme(option)}
+                    className="sr-only"
+                  />
+                  <span
+                    className="theme-preview"
+                    style={{ background: option.preview.background }}
+                    aria-hidden="true"
+                  >
+                    <span className="theme-preview-dot" style={{ background: option.preview.accent }} />
+                    <span className="theme-preview-line" style={{ background: option.preview.foreground }} />
+                  </span>
+                  <span className="theme-label">{option.label}</span>
+                  <span className="theme-description">{option.description}</span>
+                </label>
+              );
+            })}
           </div>
           <div className="card row">
             <div className="row-text">

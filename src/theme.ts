@@ -1,4 +1,11 @@
-import { DEFAULT_APPEARANCE, type Appearance, type Palette, type Theme } from "./types";
+import { NAMED_THEMES, type NamedTheme } from "./themes";
+import {
+  DEFAULT_APPEARANCE,
+  type Appearance,
+  type NamedPalette,
+  type Palette,
+  type Theme,
+} from "./types";
 
 interface Colors {
   accent: string;
@@ -10,48 +17,6 @@ interface PaletteDef {
   label: string;
   light: Colors;
   dark: Colors;
-}
-
-/** Indigo is the stylesheet's own look, so it overrides nothing. */
-export const PALETTES: Record<Palette, PaletteDef> = {
-  indigo: { label: "Índigo", light: { accent: "#5b5bf0" }, dark: { accent: "#8083ff" } },
-  graphite: { label: "Grafito", light: { accent: "#3d4452" }, dark: { accent: "#b4bac6" } },
-  green: { label: "Verde", light: { accent: "#12875a" }, dark: { accent: "#3ecf8e" } },
-  amber: { label: "Ámbar", light: { accent: "#c26a00" }, dark: { accent: "#f5a524" } },
-  contrast: {
-    label: "Contraste",
-    light: {
-      accent: "#0b3fd1",
-      extra: {
-        "--text": "#000000",
-        "--text-secondary": "#2b303a",
-        "--text-faint": "#4a505c",
-        "--border": "rgba(0, 0, 0, 0.35)",
-        "--border-strong": "rgba(0, 0, 0, 0.6)",
-      },
-    },
-    dark: {
-      accent: "#7fb0ff",
-      extra: {
-        "--text": "#ffffff",
-        "--text-secondary": "#e2e5ea",
-        "--text-faint": "#bcc2cc",
-        "--border": "rgba(255, 255, 255, 0.4)",
-        "--border-strong": "rgba(255, 255, 255, 0.7)",
-      },
-    },
-  },
-};
-
-const TEXT_SCALE = { small: "0.92", medium: "1", large: "1.1" } as const;
-
-/** Variables set inline by [`applyAppearance`], so the next call can clear them. */
-let applied: string[] = [];
-
-const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-function isDark(theme: Theme): boolean {
-  return theme === "dark" || (theme === "system" && darkQuery.matches);
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -90,13 +55,23 @@ function readableOn(hex: string): string {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#0e0f14" : "#ffffff";
 }
 
+function softColor(hex: string, alpha: number): string {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 /**
- * Accent colour for text drawn on `--accent-soft`, mixed toward the ink until it clears
- * 4.5:1. The fill keeps the palette accent; only text gets the darker/lighter variant.
+ * Text colour for `color` drawn on a soft tint of itself over `background`, mixed toward
+ * black (light themes) or white (dark themes) until it clears 4.5:1.
  */
-function accentInk(accent: string, dark: boolean): string {
-  const base = hexToRgb(accent);
-  const soft = mix(base, hexToRgb(dark ? "#17181c" : "#ffffff"), dark ? 0.18 : 0.12);
+function inkOnSoft(
+  color: string,
+  background: string,
+  alpha: number,
+  dark: boolean
+): string {
+  const base = hexToRgb(color);
+  const soft = mix(base, hexToRgb(background), alpha);
   const ink: [number, number, number] = dark ? [255, 255, 255] : [0, 0, 0];
   for (let step = 0; step <= 20; step++) {
     const candidate = mix(base, ink, step / 20);
@@ -105,12 +80,90 @@ function accentInk(accent: string, dark: boolean): string {
   return rgbToHex(ink);
 }
 
-let current: { theme: Theme; appearance: Appearance } = { theme: "system", appearance: DEFAULT_APPEARANCE };
-
-/** The accent a palette resolves to; the settings preview uses it for its swatches. */
-export function paletteAccent(palette: Palette, theme: Theme = current.theme): string {
-  return PALETTES[palette][isDark(theme) ? "dark" : "light"].accent;
+/** Accent used for text on `--accent-soft`. The fill keeps the palette accent. */
+function accentInk(accent: string, background: string, dark: boolean): string {
+  return inkOnSoft(accent, background, dark ? 0.18 : 0.12, dark);
 }
+
+/** Maps a named theme's tokens onto peekr's variables. */
+function namedExtras(theme: NamedTheme): Record<string, string> {
+  return {
+    "--bg": theme.background,
+    "--surface": theme.card,
+    "--surface-hover": theme.secondary,
+    "--text": theme.foreground,
+    "--text-secondary": theme.muted,
+    "--text-faint": theme.muted,
+    "--border": theme.border,
+    "--border-strong": theme.input,
+    "--success": theme.success,
+    "--success-soft": softColor(theme.success, 0.14),
+    "--success-ink": inkOnSoft(theme.success, theme.background, 0.14, theme.dark),
+    "--danger": theme.destructive,
+    "--danger-soft": softColor(theme.destructive, 0.14),
+    "--danger-ink": inkOnSoft(theme.destructive, theme.background, 0.14, theme.dark),
+    "--warning": theme.warning,
+    "--warning-soft": softColor(theme.warning, 0.16),
+    "--warning-ink": inkOnSoft(theme.warning, theme.background, 0.16, theme.dark),
+    "--on-success": readableOn(theme.success),
+    "--on-danger": readableOn(theme.destructive),
+  };
+}
+
+const NAMED_PALETTES = Object.fromEntries(
+  NAMED_THEMES.map((theme) => [
+    theme.id,
+    {
+      label: theme.label,
+      light: { accent: theme.primary, extra: namedExtras(theme) },
+      dark: { accent: theme.primary, extra: namedExtras(theme) },
+    } satisfies PaletteDef,
+  ])
+) as Record<NamedPalette, PaletteDef>;
+
+export const PALETTES: Record<Palette, PaletteDef> = {
+  indigo: { label: "Índigo", light: { accent: "#5b5bf0" }, dark: { accent: "#8083ff" } },
+  graphite: { label: "Grafito", light: { accent: "#3d4452" }, dark: { accent: "#b4bac6" } },
+  green: { label: "Verde", light: { accent: "#12875a" }, dark: { accent: "#3ecf8e" } },
+  amber: { label: "Ámbar", light: { accent: "#c26a00" }, dark: { accent: "#f5a524" } },
+  contrast: {
+    label: "Contraste",
+    light: {
+      accent: "#0b3fd1",
+      extra: {
+        "--text": "#000000",
+        "--text-secondary": "#2b303a",
+        "--text-faint": "#4a505c",
+        "--border": "rgba(0, 0, 0, 0.35)",
+        "--border-strong": "rgba(0, 0, 0, 0.6)",
+      },
+    },
+    dark: {
+      accent: "#7fb0ff",
+      extra: {
+        "--text": "#ffffff",
+        "--text-secondary": "#e2e5ea",
+        "--text-faint": "#bcc2cc",
+        "--border": "rgba(255, 255, 255, 0.4)",
+        "--border-strong": "rgba(255, 255, 255, 0.7)",
+      },
+    },
+  },
+  ...NAMED_PALETTES,
+};
+
+const TEXT_SCALE = { small: "0.92", medium: "1", large: "1.1" } as const;
+
+/** Variables set inline by [`applyAppearance`], so the next call can clear them. */
+let applied: string[] = [];
+
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+function isDark(theme: Theme): boolean {
+  return theme === "dark" || (theme === "system" && darkQuery.matches);
+}
+
+let current: { theme: Theme; appearance: Appearance } = { theme: "system", appearance: DEFAULT_APPEARANCE };
 
 /**
  * Applies light/dark/system plus the palette, accent, density and text size to the page.
@@ -132,15 +185,15 @@ export function applyAppearance(theme: Theme, appearance: Appearance) {
     applied.push(name);
   };
 
-  const colors = PALETTES[appearance.palette][isDark(theme) ? "dark" : "light"];
+  const dark = isDark(theme);
+  const colors = PALETTES[appearance.palette][dark ? "dark" : "light"];
   const accent = appearance.accent ?? colors.accent;
+  const background = colors.extra?.["--bg"] ?? (dark ? "#17181c" : "#ffffff");
   // The default palette with no custom accent is the stylesheet itself.
   if (appearance.palette !== "indigo" || appearance.accent) {
-    const dark = isDark(theme);
-    const [r, g, b] = hexToRgb(accent);
     set("--accent", accent);
-    set("--accent-soft", `rgba(${r}, ${g}, ${b}, ${dark ? 0.18 : 0.12})`);
-    set("--accent-ink", accentInk(accent, dark));
+    set("--accent-soft", softColor(accent, dark ? 0.18 : 0.12));
+    set("--accent-ink", accentInk(accent, background, dark));
     set("--accent-text", readableOn(accent));
   }
   for (const [name, value] of Object.entries(colors.extra ?? {})) set(name, value);

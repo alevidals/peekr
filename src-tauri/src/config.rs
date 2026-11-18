@@ -50,7 +50,7 @@ pub enum Theme {
 
 /// Colour preset; each one defines its own light and dark variants in the frontend.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum Palette {
     #[default]
     Indigo,
@@ -58,6 +58,15 @@ pub enum Palette {
     Green,
     Amber,
     Contrast,
+    // Named themes shared with sftply; each pins its own light/dark scheme.
+    OneDark,
+    GruvboxDark,
+    GruvboxLight,
+    Nord,
+    Dracula,
+    SolarizedLight,
+    TokyoNight,
+    CatppuccinMocha,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -297,6 +306,16 @@ mod tests {
             };
             assert_eq!(a.sanitized().accent, None, "{bad}");
         }
+    }
+
+    #[test]
+    fn named_palettes_use_camel_case() {
+        let appearance: Appearance =
+            serde_json::from_str(r#"{"palette":"catppuccinMocha"}"#).unwrap();
+        assert_eq!(appearance.palette, Palette::CatppuccinMocha);
+        assert!(serde_json::to_string(&appearance)
+            .unwrap()
+            .contains("\"catppuccinMocha\""));
     }
 
     #[test]

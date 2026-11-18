@@ -35,7 +35,17 @@ export interface PullRequest {
   merge: MergeStatus | null;
 }
 
-export type Palette = "indigo" | "graphite" | "green" | "amber" | "contrast";
+export type NamedPalette =
+  | "oneDark"
+  | "gruvboxDark"
+  | "gruvboxLight"
+  | "nord"
+  | "dracula"
+  | "solarizedLight"
+  | "tokyoNight"
+  | "catppuccinMocha";
+
+export type Palette = "indigo" | "graphite" | "green" | "amber" | "contrast" | NamedPalette;
 export type Density = "comfortable" | "compact";
 export type TextSize = "small" | "medium" | "large";
 
