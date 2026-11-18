@@ -139,8 +139,8 @@ export function Settings({ onSaved, onClose }: Props) {
       setValidatingKey(draft.key);
       setMessage(draft.key, null);
       try {
-        const userId = await validateCredentials(draft.kind, draft.id, draft.token || undefined);
-        setMessage(draft.key, { type: "ok", text: `✓ Conectado (account: ${userId})` });
+        await validateCredentials(draft.kind, draft.id, draft.token || undefined);
+        setMessage(draft.key, { type: "ok", text: "✓ Conectado" });
       } catch (e) {
         setMessage(draft.key, { type: "error", text: String(e) });
       } finally {
@@ -239,12 +239,13 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
           <div className="card row">
             <div className="row-text">
-              <span className="row-title">Frecuencia de consulta</span>
+              <span className="row-title" id="polling-label">Frecuencia de consulta</span>
               <span className="hint">Cada cuánto se buscan PRs nuevas (30–3600 s)</span>
             </div>
             <div className="input-suffix">
               <input
                 type="number"
+                aria-labelledby="polling-label"
                 value={pollingText}
                 min={MIN_POLLING}
                 max={MAX_POLLING}
@@ -284,10 +285,10 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
           <div className="card row">
             <div className="row-text">
-              <span className="row-title">Tema</span>
+              <span className="row-title" id="theme-label">Tema</span>
               <span className="hint">Apariencia de peekr</span>
             </div>
-            <div className="segmented segmented--compact" role="radiogroup">
+            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="theme-label">
               {THEMES.map(({ value, label }) => (
                 <button
                   key={value}
@@ -304,10 +305,10 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
           <div className="card row">
             <div className="row-text">
-              <span className="row-title">Paleta</span>
+              <span className="row-title" id="palette-label">Paleta</span>
               <span className="hint">Colores base de peekr</span>
             </div>
-            <div className="swatches" role="radiogroup">
+            <div className="swatches" role="radiogroup" aria-labelledby="palette-label">
               {(Object.keys(PALETTES) as Palette[]).map((palette) => (
                 <button
                   key={palette}
@@ -345,10 +346,10 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
           <div className="card row">
             <div className="row-text">
-              <span className="row-title">Densidad</span>
+              <span className="row-title" id="density-label">Densidad</span>
               <span className="hint">Cuánto espacio ocupa cada PR</span>
             </div>
-            <div className="segmented segmented--compact" role="radiogroup">
+            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="density-label">
               {DENSITIES.map(({ value, label }) => (
                 <button
                   key={value}
@@ -365,10 +366,10 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
           <div className="card row">
             <div className="row-text">
-              <span className="row-title">Tamaño del texto</span>
+              <span className="row-title" id="text-size-label">Tamaño del texto</span>
               <span className="hint">En la lista de PRs</span>
             </div>
-            <div className="segmented segmented--compact" role="radiogroup">
+            <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="text-size-label">
               {TEXT_SIZES.map(({ value, label }) => (
                 <button
                   key={value}
@@ -395,7 +396,9 @@ export function Settings({ onSaved, onClose }: Props) {
 
       <footer className="settings-footer">
         {formMessage ? (
-          <p className={`message message--${formMessage.type}`}>{formMessage.text}</p>
+          <p className={`message message--${formMessage.type}`} role={formMessage.type === "error" ? "alert" : "status"}>
+            {formMessage.text}
+          </p>
         ) : (
           <span />
         )}

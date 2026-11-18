@@ -15,6 +15,8 @@ const base = (paths: React.ReactNode, size: number, className?: string) => (
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
+    focusable="false"
   >
     {paths}
   </svg>

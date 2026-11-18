@@ -11,14 +11,28 @@
   --accent: #5b5bf0;
   --accent-soft: rgba(91, 91, 240, 0.11);
   --accent-text: #ffffff;
+  --accent-ink: #4545c8;
   --success: #12a05c;
   --success-soft: rgba(18, 160, 92, 0.12);
+  --success-ink: #0b6b3f;
   --danger: #e5484d;
   --danger-soft: rgba(229, 72, 77, 0.1);
+  --danger-ink: #b3261e;
+  --warning: #e5a000;
+  --warning-soft: rgba(229, 160, 0, 0.14);
+  --warning-ink: #7a5200;
+  --on-strong: #ffffff;
+  --knob: #ffffff;
+  --knob-shadow: rgba(0, 0, 0, 0.3);
+  --brand-bitbucket: #2684ff;
+  --brand-github: #24292f;
+  --shadow-card: 0 1px 2px rgba(15, 18, 30, 0.05);
+  --shadow-control: 0 1px 3px rgba(15, 18, 30, 0.15);
   --radius: 10px;
   --radius-sm: 7px;
   --shadow: 0 12px 40px rgba(15, 18, 30, 0.22), 0 2px 8px rgba(15, 18, 30, 0.08);
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
 }
 
@@ -35,10 +49,23 @@
     --accent: #8083ff;
     --accent-soft: rgba(128, 131, 255, 0.16);
     --accent-text: #0e0f14;
+    --accent-ink: #a6a8ff;
     --success: #3ecf8e;
     --success-soft: rgba(62, 207, 142, 0.14);
+    --success-ink: #6ee7b7;
     --danger: #ff6369;
     --danger-soft: rgba(255, 99, 105, 0.13);
+    --danger-ink: #ff9a9e;
+    --warning: #e5a000;
+    --warning-soft: rgba(229, 160, 0, 0.16);
+    --warning-ink: #f5c451;
+    --on-strong: #ffffff;
+    --knob: #ffffff;
+    --knob-shadow: rgba(0, 0, 0, 0.45);
+    --brand-bitbucket: #2684ff;
+    --brand-github: #3a3f47;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-control: 0 1px 3px rgba(0, 0, 0, 0.45);
     --shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
@@ -56,10 +83,23 @@
   --accent: #8083ff;
   --accent-soft: rgba(128, 131, 255, 0.16);
   --accent-text: #0e0f14;
+  --accent-ink: #a6a8ff;
   --success: #3ecf8e;
   --success-soft: rgba(62, 207, 142, 0.14);
+  --success-ink: #6ee7b7;
   --danger: #ff6369;
   --danger-soft: rgba(255, 99, 105, 0.13);
+  --danger-ink: #ff9a9e;
+  --warning: #e5a000;
+  --warning-soft: rgba(229, 160, 0, 0.16);
+  --warning-ink: #f5c451;
+  --on-strong: #ffffff;
+  --knob: #ffffff;
+  --knob-shadow: rgba(0, 0, 0, 0.45);
+  --brand-bitbucket: #2684ff;
+  --brand-github: #3a3f47;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-control: 0 1px 3px rgba(0, 0, 0, 0.45);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
@@ -78,12 +118,19 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.4;
-  overflow: hidden;
+  overflow: clip;
   color: var(--text);
+  caret-color: var(--accent);
+  scrollbar-color: var(--border-strong) transparent;
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 button {
@@ -99,7 +146,7 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 ::placeholder {
@@ -150,11 +197,11 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, transform 0.05s;
 }
 
 .icon-btn:hover {
@@ -162,14 +209,19 @@ textarea:focus-visible {
   color: var(--text);
 }
 
+.icon-btn:active {
+  background: var(--surface-hover);
+  transform: translateY(0.5px);
+}
+
 .icon-btn--danger:hover {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 
 .filter-btn--active,
 .filter-btn--active:hover {
-  color: var(--accent);
+  color: var(--accent-ink);
   background: var(--accent-soft);
 }
 
@@ -185,7 +237,7 @@ textarea:focus-visible {
   /* No box-shadow: the window is exactly this size, so a shadow would be clipped and show
      up as a dark fill in the rounded corners. */
   overflow: hidden;
-  animation: popover-in 0.22s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+  animation: popover-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transform-origin: top center;
 }
 
@@ -224,11 +276,12 @@ textarea:focus-visible {
   font-size: 11px;
   font-weight: 700;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   border-radius: 999px;
   padding: 1px 8px;
   min-width: 22px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .popover-header-actions {
@@ -245,7 +298,7 @@ textarea:focus-visible {
   padding: 7px 10px;
   border-radius: var(--radius-sm);
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-ink);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -272,7 +325,8 @@ textarea:focus-visible {
 
 .popover-footer-status {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .refresh-btn {
@@ -289,6 +343,10 @@ textarea:focus-visible {
 .refresh-btn:hover {
   background: var(--surface-hover);
   color: var(--text);
+}
+
+.refresh-btn:active {
+  transform: translateY(0.5px);
 }
 
 /* Empty states */
@@ -308,17 +366,12 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 8px;
-  border-radius: 16px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  margin-bottom: 6px;
+  color: var(--text-secondary);
 }
 
 .empty-state-icon--ok {
-  background: var(--success-soft);
-  color: var(--success);
+  color: var(--success-ink);
 }
 
 .empty-state-title {
@@ -329,7 +382,7 @@ textarea:focus-visible {
 .empty-state-text {
   font-size: 12px;
   color: var(--text-secondary);
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 
 .spinner {
@@ -373,17 +426,18 @@ textarea:focus-visible {
 
 .pr-list-group-provider {
   font-weight: 500;
-  color: var(--text-faint);
+  color: var(--text-secondary);
 }
 
 .pr-list-group-count {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-faint);
+  color: var(--text-secondary);
   background: var(--surface);
   border-radius: 999px;
   padding: 0 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .pr-item {
@@ -405,6 +459,10 @@ textarea:focus-visible {
   background: var(--surface);
 }
 
+.pr-item:active {
+  background: var(--surface-hover);
+}
+
 /* Drawn inside the item so the sticky group header can't cover it. */
 .pr-item:focus-visible {
   outline-offset: -2px;
@@ -416,6 +474,7 @@ textarea:focus-visible {
 }
 
 .pr-item-avatar {
+  display: block;
   flex-shrink: 0;
   width: 30px;
   height: 30px;
@@ -465,7 +524,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 5px;
   margin-bottom: 3px;
-  color: var(--text-faint);
+  color: var(--text-secondary);
   min-width: 0;
 }
 
@@ -505,7 +564,11 @@ textarea:focus-visible {
   gap: 8px;
   flex-shrink: 0;
   white-space: nowrap;
-  color: var(--text-faint);
+  color: var(--text-secondary);
+}
+
+.pr-item-time {
+  font-variant-numeric: tabular-nums;
 }
 
 .pr-item-comments {
@@ -522,14 +585,12 @@ textarea:focus-visible {
 
 .pr-item-draft-badge {
   flex-shrink: 0;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-secondary);
   background: var(--surface-hover);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 1px 6px;
   margin-right: 6px;
 }
 
@@ -553,13 +614,7 @@ textarea:focus-visible {
   color: var(--text);
   font-family: inherit;
   font-size: 13px;
-  outline: none;
   transition: border-color 0.12s, box-shadow 0.12s;
-}
-
-.search-bar input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .search-bar-icon {
@@ -584,7 +639,7 @@ textarea:focus-visible {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-strong);
 }
 
 .ci-badge--success {
@@ -600,7 +655,7 @@ textarea:focus-visible {
   height: 11px;
   margin: 2px;
   background: transparent;
-  border: 2px solid #e5a000;
+  border: 2px solid var(--warning-ink);
   border-top-color: transparent;
   animation: spin 0.9s linear infinite;
 }
@@ -609,7 +664,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  color: var(--success);
+  color: var(--success-ink);
   font-weight: 600;
 }
 
@@ -669,10 +724,13 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pr-item,
-  .skeleton-row,
-  .skeleton {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -745,25 +803,29 @@ textarea:focus-visible {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-  opacity: 0.7;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, transform 0.05s;
 }
 
 .tab:hover {
-  opacity: 1;
+  color: var(--text);
+}
+
+.tab:active {
+  transform: translateY(0.5px);
 }
 
 .tab--active {
-  opacity: 1;
+  color: var(--text);
   border-bottom-color: var(--accent);
 }
 
 .pr-count--ready {
   background: var(--success-soft);
-  color: var(--success);
+  color: var(--success-ink);
 }
 
 .merge-pill {
@@ -780,28 +842,28 @@ textarea:focus-visible {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .merge-pill--ready .merge-pill-label {
   background: var(--success-soft);
-  color: var(--success);
+  color: var(--success-ink);
 }
 
 .merge-pill--blocked .merge-pill-label,
 .merge-pill--conflicts .merge-pill-label {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 
 .merge-pill--waiting .merge-pill-label,
 .merge-pill--behind .merge-pill-label {
-  background: rgba(229, 160, 0, 0.14);
-  color: #b57f00;
+  background: var(--warning-soft);
+  color: var(--warning-ink);
 }
 
 .merge-pill-blockers {
-  opacity: 0.75;
+  color: var(--text-secondary);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

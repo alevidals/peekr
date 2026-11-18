@@ -26,6 +26,20 @@
   or white on a light one).
 - Polling interval input could not be cleared and accepted out-of-range values.
 - Listeners and timers are cleaned up on unmount, and `Esc` works with an empty list.
+- The PR row shows the update time instead of the creation time.
+
+### Accessibility
+
+- Focus rings are outlines again on inputs and controls; the field rules were overriding the
+  global `:focus-visible`.
+- Small text on badges, pills and messages uses dedicated ink tokens that clear 4.5:1,
+  including the amber palette and custom accents.
+- `prefers-reduced-motion: reduce` now covers every animation, not just the list.
+- Form labels, radio groups, tabs and icon-only buttons expose names and roles; tabs support
+  arrow keys; errors and validation messages announce as alerts/status.
+- The PR row uses valid phrasing markup inside the button, and decorative icons are hidden
+  from assistive technology.
+- Tracked-caps labels, middle-dot meta strings and the arrow glued to the token link are gone.
 
 ### Tooling
 

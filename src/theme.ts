@@ -59,10 +59,50 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function mix(
+  from: [number, number, number],
+  to: [number, number, number],
+  t: number
+): [number, number, number] {
+  return from.map((v, i) => Math.round(v + (to[i] - v) * t)) as [number, number, number];
+}
+
+function luminance([r, g, b]: [number, number, number]): number {
+  const channel = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrast(a: [number, number, number], b: [number, number, number]): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 /** Black or white text, whichever reads better on `hex`. */
 function readableOn(hex: string): string {
   const [r, g, b] = hexToRgb(hex);
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#0e0f14" : "#ffffff";
+}
+
+/**
+ * Accent colour for text drawn on `--accent-soft`, mixed toward the ink until it clears
+ * 4.5:1. The fill keeps the palette accent; only text gets the darker/lighter variant.
+ */
+function accentInk(accent: string, dark: boolean): string {
+  const base = hexToRgb(accent);
+  const soft = mix(base, hexToRgb(dark ? "#17181c" : "#ffffff"), dark ? 0.18 : 0.12);
+  const ink: [number, number, number] = dark ? [255, 255, 255] : [0, 0, 0];
+  for (let step = 0; step <= 20; step++) {
+    const candidate = mix(base, ink, step / 20);
+    if (contrast(candidate, soft) >= 4.5) return rgbToHex(candidate);
+  }
+  return rgbToHex(ink);
 }
 
 let current: { theme: Theme; appearance: Appearance } = { theme: "system", appearance: DEFAULT_APPEARANCE };
@@ -96,9 +136,11 @@ export function applyAppearance(theme: Theme, appearance: Appearance) {
   const accent = appearance.accent ?? colors.accent;
   // The default palette with no custom accent is the stylesheet itself.
   if (appearance.palette !== "indigo" || appearance.accent) {
+    const dark = isDark(theme);
     const [r, g, b] = hexToRgb(accent);
     set("--accent", accent);
-    set("--accent-soft", `rgba(${r}, ${g}, ${b}, ${isDark(theme) ? 0.18 : 0.12})`);
+    set("--accent-soft", `rgba(${r}, ${g}, ${b}, ${dark ? 0.18 : 0.12})`);
+    set("--accent-ink", accentInk(accent, dark));
     set("--accent-text", readableOn(accent));
   }
   for (const [name, value] of Object.entries(colors.extra ?? {})) set(name, value);

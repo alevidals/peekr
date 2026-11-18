@@ -27,9 +27,10 @@ export const AccountForm = memo(function AccountForm({
   const meta = PROVIDERS[draft.kind];
   const complete = isDraftComplete(draft);
   const repoCount = parseRepos(draft.reposText).length;
-  const summary = `${meta.label} · ${
+  const summary = `${meta.label}, ${
     repoCount === 0 ? "todos los repos" : `${repoCount} ${repoCount === 1 ? "repo" : "repos"}`
   }`;
+  const fieldId = (name: string) => `account-${draft.key}-${name}`;
 
   return (
     <section className={`account${open ? " account--open" : ""}`}>
@@ -50,12 +51,14 @@ export const AccountForm = memo(function AccountForm({
           <span
             className={`account-status${complete ? " account-status--ok" : ""}`}
             title={complete ? "Completa" : "Faltan datos"}
+            role="img"
+            aria-label={complete ? "Completa" : "Faltan datos"}
           >
             {complete ? <IconCheck size={11} /> : null}
           </span>
           <IconChevron size={14} className="account-chevron" />
         </button>
-        <button type="button" className="icon-btn icon-btn--danger" title="Eliminar cuenta" onClick={() => onRemove(draft.key)}>
+        <button type="button" className="icon-btn icon-btn--danger" title="Eliminar cuenta" aria-label="Eliminar cuenta" onClick={() => onRemove(draft.key)}>
           <IconTrash size={15} />
         </button>
       </div>
@@ -63,8 +66,8 @@ export const AccountForm = memo(function AccountForm({
       {open && (
         <div className="account-body">
           <div className="field">
-            <label>Proveedor</label>
-            <div className="segmented" role="radiogroup">
+            <label id={fieldId("provider")}>Proveedor</label>
+            <div className="segmented" role="radiogroup" aria-labelledby={fieldId("provider")}>
               {PROVIDER_KINDS.map((kind) => (
                 <button
                   key={kind}
@@ -83,8 +86,9 @@ export const AccountForm = memo(function AccountForm({
           </div>
 
           <div className="field">
-            <label>{meta.workspaceLabel}</label>
+            <label htmlFor={fieldId("workspace")}>{meta.workspaceLabel}</label>
             <input
+              id={fieldId("workspace")}
               type="text"
               value={draft.workspace}
               onChange={(e) => onChange(draft.key, { workspace: e.target.value })}
@@ -95,8 +99,9 @@ export const AccountForm = memo(function AccountForm({
           </div>
 
           <div className="field">
-            <label>Token</label>
+            <label htmlFor={fieldId("token")}>Token</label>
             <input
+              id={fieldId("token")}
               type="password"
               value={draft.token}
               onChange={(e) => onChange(draft.key, { token: e.target.value })}
@@ -117,17 +122,18 @@ export const AccountForm = memo(function AccountForm({
                 className="link-btn"
                 onClick={() => openUrl(meta.tokenUrl(draft.workspace))}
               >
-                Crear token en {meta.label} ↗
+                Crear token en {meta.label}
               </button>
             </div>
           </div>
 
           <div className="field">
-            <label>
+            <label htmlFor={fieldId("repos")}>
               Repos a monitorizar
               {!meta.reposRequired && <em>opcional</em>}
             </label>
             <textarea
+              id={fieldId("repos")}
               value={draft.reposText}
               onChange={(e) => onChange(draft.key, { reposText: e.target.value })}
               placeholder={meta.reposPlaceholder}
@@ -139,7 +145,9 @@ export const AccountForm = memo(function AccountForm({
 
           <div className="account-actions">
             {message ? (
-              <p className={`message message--${message.type}`}>{message.text}</p>
+              <p className={`message message--${message.type}`} role={message.type === "error" ? "alert" : "status"}>
+                {message.text}
+              </p>
             ) : (
               <span />
             )}

@@ -107,6 +107,14 @@ export function PopoverWindow() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hasPrs]);
 
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next = e.currentTarget.id === "tab-review" ? "mine" : "review";
+    setTab(next);
+    document.getElementById(`tab-${next}`)?.focus();
+  }
+
   function renderContent() {
     if (config === undefined) return <EmptyState type="loading" />;
     if (!isConfigured) return <EmptyState type="not-configured" />;
@@ -129,6 +137,9 @@ export function PopoverWindow() {
             <button
               className={`icon-btn${searching ? " filter-btn--active" : ""}`}
               title="Search ( / )"
+              aria-label="Search"
+              aria-expanded={searching}
+              aria-controls="pr-search"
               onClick={() => (searching ? closeSearch() : setSearching(true))}
             >
               <IconSearch size={16} />
@@ -138,6 +149,7 @@ export function PopoverWindow() {
             <button
               className={`icon-btn${onlyPassing ? " filter-btn--active" : ""}`}
               title={onlyPassing ? "Show all pipelines" : "Only PRs with passing pipeline"}
+              aria-label={onlyPassing ? "Show all pipelines" : "Only PRs with passing pipeline"}
               aria-pressed={onlyPassing}
               onClick={() => setOnlyPassing((v) => !v)}
             >
@@ -148,6 +160,8 @@ export function PopoverWindow() {
             <button
               className={`icon-btn filter-btn${hideDraft ? " filter-btn--active" : ""}`}
               title={hideDraft ? "Show drafts" : "Hide drafts"}
+              aria-label={hideDraft ? "Show drafts" : "Hide drafts"}
+              aria-pressed={hideDraft}
               onClick={() => setHideDraft((v) => !v)}
             >
               <IconPencil size={16} />
@@ -156,6 +170,7 @@ export function PopoverWindow() {
           <button
             className="icon-btn"
             title="Settings"
+            aria-label="Settings"
             onClick={() => openSettingsWindow().catch(console.error)}
           >
             <IconSettings size={16} />
@@ -164,21 +179,29 @@ export function PopoverWindow() {
       </header>
 
       {isConfigured && (
-        <nav className="tabs" role="tablist">
+        <div className="tabs" role="tablist" aria-label="Pull requests">
           <button
+            id="tab-review"
             role="tab"
             aria-selected={tab === "review"}
+            aria-controls="pr-panel"
+            tabIndex={tab === "review" ? 0 : -1}
             className={`tab${tab === "review" ? " tab--active" : ""}`}
             onClick={() => setTab("review")}
+            onKeyDown={onTabKeyDown}
           >
             To review
             {reviewPrs.length > 0 && <span className="pr-count">{reviewPrs.length > 99 ? "99+" : reviewPrs.length}</span>}
           </button>
           <button
+            id="tab-mine"
             role="tab"
             aria-selected={tab === "mine"}
+            aria-controls="pr-panel"
+            tabIndex={tab === "mine" ? 0 : -1}
             className={`tab${tab === "mine" ? " tab--active" : ""}`}
             onClick={() => setTab("mine")}
+            onKeyDown={onTabKeyDown}
           >
             My PRs
             {mine.length > 0 && (
@@ -187,15 +210,17 @@ export function PopoverWindow() {
               </span>
             )}
           </button>
-        </nav>
+        </div>
       )}
 
       {searching && (
         <div className="search-bar">
           <IconSearch size={14} className="search-bar-icon" />
           <input
+            id="pr-search"
             ref={searchRef}
             autoFocus
+            aria-label="Search pull requests"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -208,16 +233,33 @@ export function PopoverWindow() {
             spellCheck={false}
           />
           {query && (
-            <button className="icon-btn search-bar-clear" title="Clear" onClick={() => setQuery("")}>
+            <button
+              className="icon-btn search-bar-clear"
+              title="Clear"
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+            >
               <IconX size={12} />
             </button>
           )}
         </div>
       )}
 
-      {error && <div className="error-banner"><IconAlert size={13} /> <span>{error}</span></div>}
+      {error && (
+        <div className="error-banner" role="alert">
+          <IconAlert size={13} /> <span>{error}</span>
+        </div>
+      )}
 
-      <div ref={contentRef} className="popover-content">{renderContent()}</div>
+      <div
+        ref={contentRef}
+        id="pr-panel"
+        className="popover-content"
+        role={isConfigured ? "tabpanel" : undefined}
+        aria-labelledby={isConfigured ? `tab-${tab}` : undefined}
+      >
+        {renderContent()}
+      </div>
 
       {isConfigured && (
         <footer className="popover-footer">
@@ -228,7 +270,7 @@ export function PopoverWindow() {
               ? `Updated ${lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
               : ""}
           </span>
-          <button className="refresh-btn" onClick={refresh} title="Refresh">
+          <button className="refresh-btn" onClick={refresh} title="Refresh" aria-label="Refresh">
             <span className={loading ? "spin" : undefined}>
               <IconRefresh size={14} />
             </span>
