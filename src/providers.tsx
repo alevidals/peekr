@@ -26,35 +26,35 @@ export const PROVIDERS: Record<ProviderKind, ProviderMeta> = {
     workspaceLabel: "Workspace",
     workspaceHint: (
       <>
-        El slug de la URL: bitbucket.org/<strong>workspace</strong>/repo
+        The slug in the URL: bitbucket.org/<strong>workspace</strong>/repo
       </>
     ),
-    tokenHint: "Repository o Workspace Access Token de Bitbucket Cloud",
+    tokenHint: "Bitbucket Cloud repository or workspace access token",
     tokenUrl: () => "https://id.atlassian.com/manage-profile/security/api-tokens",
     tokenScopes: ["read:pullrequest:bitbucket", "read:user:bitbucket", "read:repository:bitbucket"],
-    reposHint: "Un slug por línea — el nombre que aparece en la URL",
+    reposHint: "One slug per line — the name shown in the URL",
     reposPlaceholder: "my-repo\nanother-repo\nthird-repo",
     reposRequired: true,
   },
   github: {
     label: "GitHub",
     enabled: true,
-    workspaceLabel: "Organización / usuario",
+    workspaceLabel: "Organization / user",
     workspaceHint: (
       <>
         github.com/<strong>owner</strong>/repo
       </>
     ),
     tokenHint:
-      "Personal Access Token. Si la organización usa SSO, autoriza el token para ella.",
+      "Personal access token. If the organization uses SSO, authorize the token for it.",
     tokenUrl: () => "https://github.com/settings/personal-access-tokens/new",
     tokenScopes: [
       "Fine-grained: Pull requests (Read)",
-      "Fine-grained: Checks (Read) y Commit statuses (Read) para el estado del CI",
+      "Fine-grained: Checks (Read) and Commit statuses (Read) for CI status",
       "Classic: scope repo",
     ],
     reposHint:
-      "Opcional — déjalo vacío para vigilar todos los repos. Un repo por línea (nombre u owner/nombre)",
+      "Optional — leave empty to watch every repository. One repo per line (name or owner/name)",
     reposPlaceholder: "web\napi",
     reposRequired: false,
   },

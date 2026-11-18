@@ -122,12 +122,12 @@ const NAMED_PALETTES = Object.fromEntries(
 ) as Record<NamedPalette, PaletteDef>;
 
 export const PALETTES: Record<Palette, PaletteDef> = {
-  indigo: { label: "Índigo", light: { accent: "#5b5bf0" }, dark: { accent: "#8083ff" } },
-  graphite: { label: "Grafito", light: { accent: "#3d4452" }, dark: { accent: "#b4bac6" } },
-  green: { label: "Verde", light: { accent: "#12875a" }, dark: { accent: "#3ecf8e" } },
-  amber: { label: "Ámbar", light: { accent: "#c26a00" }, dark: { accent: "#f5a524" } },
+  indigo: { label: "Indigo", light: { accent: "#5b5bf0" }, dark: { accent: "#8083ff" } },
+  graphite: { label: "Graphite", light: { accent: "#3d4452" }, dark: { accent: "#b4bac6" } },
+  green: { label: "Green", light: { accent: "#12875a" }, dark: { accent: "#3ecf8e" } },
+  amber: { label: "Amber", light: { accent: "#c26a00" }, dark: { accent: "#f5a524" } },
   contrast: {
-    label: "Contraste",
+    label: "Contrast",
     light: {
       accent: "#0b3fd1",
       extra: {

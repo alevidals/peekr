@@ -45,7 +45,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "oneDark",
     label: "One Dark",
-    description: "El clásico de Atom",
+    description: "Atom's classic",
     dark: true,
     background: "#282c34",
     foreground: "#abb2bf",
@@ -63,7 +63,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "gruvboxDark",
     label: "Gruvbox Dark",
-    description: "Cálido y retro",
+    description: "Warm and retro",
     dark: true,
     background: "#282828",
     foreground: "#ebdbb2",
@@ -81,7 +81,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "gruvboxLight",
     label: "Gruvbox Light",
-    description: "Papel cálido",
+    description: "Warm paper",
     dark: false,
     background: "#fbf1c7",
     foreground: "#3c3836",
@@ -99,7 +99,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "nord",
     label: "Nord",
-    description: "Azules árticos",
+    description: "Arctic blues",
     dark: true,
     background: "#2e3440",
     foreground: "#d8dee9",
@@ -117,7 +117,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "dracula",
     label: "Dracula",
-    description: "Púrpura intenso",
+    description: "Vivid purple",
     dark: true,
     background: "#282a36",
     foreground: "#f8f8f2",
@@ -135,7 +135,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "solarizedLight",
     label: "Solarized Light",
-    description: "Luz de precisión",
+    description: "Precision light",
     dark: false,
     background: "#fdf6e3",
     foreground: "#586e75",
@@ -153,7 +153,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "tokyoNight",
     label: "Tokyo Night",
-    description: "Ciudad de neón",
+    description: "Neon city",
     dark: true,
     background: "#24283b",
     foreground: "#c0caf5",
@@ -171,7 +171,7 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
   {
     id: "catppuccinMocha",
     label: "Catppuccin Mocha",
-    description: "Pasteles suaves",
+    description: "Soft pastels",
     dark: true,
     background: "#1e1e2e",
     foreground: "#cdd6f4",
@@ -191,8 +191,8 @@ export const NAMED_THEMES: readonly NamedTheme[] = [
 const DEFAULT_OPTIONS: readonly ThemeOption[] = [
   {
     value: "system",
-    label: "Sistema",
-    description: "Sigue al sistema",
+    label: "System",
+    description: "Follows the system",
     theme: "system",
     palette: "indigo",
     // Two-tone strip: the icon and text take their colour from the OS.
@@ -204,16 +204,16 @@ const DEFAULT_OPTIONS: readonly ThemeOption[] = [
   },
   {
     value: "dark",
-    label: "Oscuro",
-    description: "Peekr oscuro",
+    label: "Dark",
+    description: "Peekr dark",
     theme: "dark",
     palette: "indigo",
     preview: { background: "#17181c", foreground: "#eceef2", accent: "#8083ff" },
   },
   {
     value: "light",
-    label: "Claro",
-    description: "Peekr claro",
+    label: "Light",
+    description: "Peekr light",
     theme: "light",
     palette: "indigo",
     preview: { background: "#ffffff", foreground: "#14161a", accent: "#5b5bf0" },

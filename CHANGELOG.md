@@ -19,6 +19,8 @@
 - The drafts filter uses an eye/eye-off icon and the draft row keeps full contrast; the
   “Draft” badge is the only signal. Truncated titles, branches and repo names show the full
   text on hover, and the header/refresh hit targets are 32px.
+- All UI copy is in English now: settings sections, account form, provider hints, theme
+  names/descriptions and the window title.
 - Settings is now a larger window (820 × 660) with a header, a vertical sidebar for
   Cuentas, General and Apariencia, a section header and a full-width footer. The theme
   picker sits in a three-column grid; density and text size follow below.

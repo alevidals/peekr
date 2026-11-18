@@ -28,14 +28,14 @@ interface Props {
 }
 
 const DENSITIES: { value: Density; label: string }[] = [
-  { value: "comfortable", label: "Cómoda" },
-  { value: "compact", label: "Compacta" },
+  { value: "comfortable", label: "Comfortable" },
+  { value: "compact", label: "Compact" },
 ];
 
 const TEXT_SIZES: { value: TextSize; label: string }[] = [
-  { value: "small", label: "Pequeño" },
-  { value: "medium", label: "Medio" },
-  { value: "large", label: "Grande" },
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
 ];
 
 type Section = "accounts" | "general" | "appearance";
@@ -48,20 +48,20 @@ const SECTIONS: {
 }[] = [
   {
     id: "accounts",
-    label: "Cuentas",
-    description: "Conecta tus cuentas y elige qué repositorios vigilar.",
+    label: "Accounts",
+    description: "Connect your accounts and choose which repositories to watch.",
     icon: IconAccount,
   },
   {
     id: "general",
     label: "General",
-    description: "Frecuencia de consulta y arranque con el sistema.",
+    description: "Polling frequency and launch at login.",
     icon: IconSettings,
   },
   {
     id: "appearance",
-    label: "Apariencia",
-    description: "Tema, densidad y tamaño del texto.",
+    label: "Appearance",
+    description: "Theme, density and text size.",
     icon: IconPalette,
   },
 ];
@@ -163,7 +163,7 @@ export function Settings({ onSaved, onClose }: Props) {
       setMessage(draft.key, null);
       try {
         await validateCredentials(draft.kind, draft.id, draft.token || undefined);
-        setMessage(draft.key, { type: "ok", text: "✓ Conectado" });
+        setMessage(draft.key, { type: "ok", text: "✓ Connected" });
       } catch (e) {
         setMessage(draft.key, { type: "error", text: String(e) });
       } finally {
@@ -212,7 +212,7 @@ export function Settings({ onSaved, onClose }: Props) {
         await (autostart ? enable() : disable());
         saved.current.autostart = autostart;
       }
-      setMessage("", { type: "ok", text: "¡Guardado!" });
+      setMessage("", { type: "ok", text: "Saved!" });
       if (savedTimer.current) clearTimeout(savedTimer.current);
       savedTimer.current = setTimeout(onSaved, 600);
     } catch (e) {
@@ -244,8 +244,8 @@ export function Settings({ onSaved, onClose }: Props) {
       <header className="settings-header" data-tauri-drag-region>
         <img className="settings-logo" src="/app-icon.png" alt="" />
         <div className="settings-header-text">
-          <h1>Ajustes</h1>
-          <p>Cuentas, preferencias y apariencia de peekr.</p>
+          <h1>Settings</h1>
+          <p>Accounts, preferences and appearance for peekr.</p>
         </div>
       </header>
 
@@ -255,7 +255,7 @@ export function Settings({ onSaved, onClose }: Props) {
             className="settings-nav"
             role="tablist"
             aria-orientation="vertical"
-            aria-label="Secciones de ajustes"
+            aria-label="Settings sections"
           >
             {SECTIONS.map((item, index) => {
               const Icon = item.icon;
@@ -268,7 +268,7 @@ export function Settings({ onSaved, onClose }: Props) {
                   role="tab"
                   aria-selected={selected}
                   aria-controls="settings-panel"
-                  aria-label={item.id === "accounts" ? `Cuentas, ${drafts.length}` : undefined}
+                  aria-label={item.id === "accounts" ? `Accounts, ${drafts.length}` : undefined}
                   tabIndex={selected ? 0 : -1}
                   className="settings-nav-item"
                   onClick={() => setSection(item.id)}
@@ -285,7 +285,7 @@ export function Settings({ onSaved, onClose }: Props) {
           </div>
 
           <div className="settings-sidebar-footer">
-            Hecho con ♥ por{" "}
+            Made with ♥ by{" "}
             <button type="button" onClick={() => openUrl("https://github.com/alevidals")}>
               alevidals
             </button>
@@ -310,7 +310,7 @@ export function Settings({ onSaved, onClose }: Props) {
                   className="link-btn"
                   onClick={() => changeLook("system", DEFAULT_APPEARANCE)}
                 >
-                  Restablecer
+                  Reset
                 </button>
               )}
             </div>
@@ -335,7 +335,7 @@ export function Settings({ onSaved, onClose }: Props) {
                   className="add-account"
                   onClick={() => setDrafts((ds) => [...ds, blankDraft()])}
                 >
-                  <IconPlus size={14} /> Añadir cuenta
+                  <IconPlus size={14} /> Add account
                 </button>
               </div>
             )}
@@ -344,8 +344,8 @@ export function Settings({ onSaved, onClose }: Props) {
               <div className="settings-stack">
                 <div className="card row">
                   <div className="row-text">
-                    <span className="row-title" id="polling-label">Frecuencia de consulta</span>
-                    <span className="hint">Cada cuánto se buscan PRs nuevas (30–3600 s)</span>
+                    <span className="row-title" id="polling-label">Polling interval</span>
+                    <span className="hint">How often new PRs are fetched (30–3600 s)</span>
                   </div>
                   <div className="input-suffix">
                     <input
@@ -363,14 +363,14 @@ export function Settings({ onSaved, onClose }: Props) {
                 </div>
                 <div className="card row">
                   <div className="row-text">
-                    <span className="row-title">Iniciar con el sistema</span>
-                    <span className="hint">Abre peekr automáticamente al iniciar sesión</span>
+                    <span className="row-title">Launch at login</span>
+                    <span className="hint">Open peekr automatically when you log in</span>
                   </div>
                   <button
                     type="button"
                     role="switch"
                     aria-checked={autostart}
-                    aria-label="Iniciar con el sistema"
+                    aria-label="Launch at login"
                     className={`switch${autostart ? " switch--on" : ""}`}
                     onClick={() => setAutostart((v) => !v)}
                   />
@@ -380,7 +380,7 @@ export function Settings({ onSaved, onClose }: Props) {
 
             {section === "appearance" && (
               <div className="settings-stack">
-                <div className="theme-grid" role="radiogroup" aria-label="Tema">
+                <div className="theme-grid" role="radiogroup" aria-label="Theme">
                   {THEME_OPTIONS.map((option) => {
                     const selected = selectedTheme === option.value;
                     return (
@@ -414,8 +414,8 @@ export function Settings({ onSaved, onClose }: Props) {
 
                 <div className="card row">
                   <div className="row-text">
-                    <span className="row-title" id="density-label">Densidad</span>
-                    <span className="hint">Cuánto espacio ocupa cada PR</span>
+                    <span className="row-title" id="density-label">Density</span>
+                    <span className="hint">How much space each PR takes</span>
                   </div>
                   <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="density-label">
                     {DENSITIES.map(({ value, label }) => (
@@ -435,8 +435,8 @@ export function Settings({ onSaved, onClose }: Props) {
 
                 <div className="card row">
                   <div className="row-text">
-                    <span className="row-title" id="text-size-label">Tamaño del texto</span>
-                    <span className="hint">En la lista de PRs</span>
+                    <span className="row-title" id="text-size-label">Text size</span>
+                    <span className="hint">In the PR list</span>
                   </div>
                   <div className="segmented segmented--compact" role="radiogroup" aria-labelledby="text-size-label">
                     {TEXT_SIZES.map(({ value, label }) => (
@@ -473,11 +473,11 @@ export function Settings({ onSaved, onClose }: Props) {
         <div className="settings-footer-actions">
           {onClose && (
             <button className="btn btn--ghost" onClick={handleClose}>
-              Cancelar
+              Cancel
             </button>
           )}
           <button className="btn btn--primary" onClick={handleSave} disabled={saving || !canSave}>
-            {saving ? "Guardando…" : "Guardar"}
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </footer>

@@ -28,7 +28,7 @@ export const AccountForm = memo(function AccountForm({
   const complete = isDraftComplete(draft);
   const repoCount = parseRepos(draft.reposText).length;
   const summary = `${meta.label}, ${
-    repoCount === 0 ? "todos los repos" : `${repoCount} ${repoCount === 1 ? "repo" : "repos"}`
+    repoCount === 0 ? "all repositories" : `${repoCount} ${repoCount === 1 ? "repo" : "repos"}`
   }`;
   const fieldId = (name: string) => `account-${draft.key}-${name}`;
 
@@ -45,20 +45,20 @@ export const AccountForm = memo(function AccountForm({
             <ProviderIcon kind={draft.kind} size={16} />
           </span>
           <span className="account-heading">
-            <span className="account-name">{draft.workspace.trim() || "Nueva cuenta"}</span>
+            <span className="account-name">{draft.workspace.trim() || "New account"}</span>
             <span className="account-summary">{summary}</span>
           </span>
           <span
             className={`account-status${complete ? " account-status--ok" : ""}`}
-            title={complete ? "Completa" : "Faltan datos"}
+            title={complete ? "Complete" : "Missing details"}
             role="img"
-            aria-label={complete ? "Completa" : "Faltan datos"}
+            aria-label={complete ? "Complete" : "Missing details"}
           >
             {complete ? <IconCheck size={11} /> : null}
           </span>
           <IconChevron size={14} className="account-chevron" />
         </button>
-        <button type="button" className="icon-btn icon-btn--danger" title="Eliminar cuenta" aria-label="Eliminar cuenta" onClick={() => onRemove(draft.key)}>
+        <button type="button" className="icon-btn icon-btn--danger" title="Remove account" aria-label="Remove account" onClick={() => onRemove(draft.key)}>
           <IconTrash size={15} />
         </button>
       </div>
@@ -66,7 +66,7 @@ export const AccountForm = memo(function AccountForm({
       {open && (
         <div className="account-body">
           <div className="field">
-            <label id={fieldId("provider")}>Proveedor</label>
+            <label id={fieldId("provider")}>Provider</label>
             <div className="segmented" role="radiogroup" aria-labelledby={fieldId("provider")}>
               {PROVIDER_KINDS.map((kind) => (
                 <button
@@ -105,11 +105,11 @@ export const AccountForm = memo(function AccountForm({
               type="password"
               value={draft.token}
               onChange={(e) => onChange(draft.key, { token: e.target.value })}
-              placeholder={draft.hasToken ? "Guardado — deja en blanco para no cambiarlo" : "••••••••••••"}
+              placeholder={draft.hasToken ? "Saved — leave blank to keep it" : "••••••••••••"}
             />
             <span className="hint">{meta.tokenHint}</span>
             <div className="token-help">
-              <span className="hint">Permisos necesarios:</span>
+              <span className="hint">Required permissions:</span>
               <ul>
                 {meta.tokenScopes.map((s) => (
                   <li key={s}>
@@ -122,15 +122,15 @@ export const AccountForm = memo(function AccountForm({
                 className="link-btn"
                 onClick={() => openUrl(meta.tokenUrl(draft.workspace))}
               >
-                Crear token en {meta.label}
+                Create token in {meta.label}
               </button>
             </div>
           </div>
 
           <div className="field">
             <label htmlFor={fieldId("repos")}>
-              Repos a monitorizar
-              {!meta.reposRequired && <em>opcional</em>}
+              Repositories to watch
+              {!meta.reposRequired && <em>optional</em>}
             </label>
             <textarea
               id={fieldId("repos")}
@@ -157,7 +157,7 @@ export const AccountForm = memo(function AccountForm({
               onClick={() => onValidate(draft)}
               disabled={validating || (!draft.token && !draft.hasToken)}
             >
-              {validating ? "Comprobando…" : "Validar token"}
+              {validating ? "Checking…" : "Validate token"}
             </button>
           </div>
         </div>
