@@ -38,7 +38,36 @@ uuid = { version = "1", features = ["v4", "serde"] }
 keyring = "=4.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc = "0.2"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSButton",
+    "NSControl",
+    "NSResponder",
+    "NSStatusBarButton",
+    "NSStatusItem",
+    "NSView",
+    "NSWindow",
+    "NSWorkspace",
+] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = [
+    "CFCGTypes",
+] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = [
+    "CGColor",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSString",
+    "NSNotification",
+    "NSObject",
+] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = [
+    "CALayer",
+    "objc2-core-foundation",
+    "objc2-core-graphics",
+] }
+tauri-nspanel = "2.1"
 mac-notification-sys = "0.6"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]

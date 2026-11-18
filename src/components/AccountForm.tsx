@@ -1,43 +1,20 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { IconCheck, IconChevron, IconTrash, ProviderIcon } from "./Icons";
 import { PROVIDERS, PROVIDER_KINDS } from "../providers";
-import type { ProviderKind } from "../types";
-
-/** An account being edited; `token` is only what the user typed this session. */
-export interface AccountDraft {
-  /** Local React key; stable across edits, unlike `id`, which new accounts don't have yet. */
-  key: string;
-  id?: string;
-  kind: ProviderKind;
-  workspace: string;
-  token: string;
-  hasToken: boolean;
-  reposText: string;
-}
-
-export const parseRepos = (text: string) =>
-  text
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean);
-
-export const isDraftComplete = (d: AccountDraft) =>
-  d.workspace.trim() !== "" &&
-  (d.token !== "" || d.hasToken) &&
-  (!PROVIDERS[d.kind].reposRequired || parseRepos(d.reposText).length > 0);
+import { isDraftComplete, parseRepos, type AccountDraft } from "../drafts";
 
 interface Props {
   draft: AccountDraft;
   defaultOpen: boolean;
   message: { type: "ok" | "error"; text: string } | null;
   validating: boolean;
-  onChange: (patch: Partial<AccountDraft>) => void;
-  onValidate: () => void;
-  onRemove: () => void;
+  onChange: (key: string, patch: Partial<AccountDraft>) => void;
+  onValidate: (draft: AccountDraft) => void;
+  onRemove: (key: string) => void;
 }
 
-export function AccountForm({
+export const AccountForm = memo(function AccountForm({
   draft,
   defaultOpen,
   message,
@@ -78,7 +55,7 @@ export function AccountForm({
           </span>
           <IconChevron size={14} className="account-chevron" />
         </button>
-        <button type="button" className="icon-btn icon-btn--danger" title="Eliminar cuenta" onClick={onRemove}>
+        <button type="button" className="icon-btn icon-btn--danger" title="Eliminar cuenta" onClick={() => onRemove(draft.key)}>
           <IconTrash size={15} />
         </button>
       </div>
@@ -96,7 +73,7 @@ export function AccountForm({
                   aria-checked={draft.kind === kind}
                   className={`segmented-item${draft.kind === kind ? " segmented-item--active" : ""}`}
                   disabled={!PROVIDERS[kind].enabled}
-                  onClick={() => draft.kind !== kind && onChange({ kind })}
+                  onClick={() => draft.kind !== kind && onChange(draft.key, { kind })}
                 >
                   <ProviderIcon kind={kind} size={14} />
                   {PROVIDERS[kind].label}
@@ -110,7 +87,7 @@ export function AccountForm({
             <input
               type="text"
               value={draft.workspace}
-              onChange={(e) => onChange({ workspace: e.target.value })}
+              onChange={(e) => onChange(draft.key, { workspace: e.target.value })}
               placeholder="my-workspace"
               spellCheck={false}
             />
@@ -122,7 +99,7 @@ export function AccountForm({
             <input
               type="password"
               value={draft.token}
-              onChange={(e) => onChange({ token: e.target.value })}
+              onChange={(e) => onChange(draft.key, { token: e.target.value })}
               placeholder={draft.hasToken ? "Guardado — deja en blanco para no cambiarlo" : "••••••••••••"}
             />
             <span className="hint">{meta.tokenHint}</span>
@@ -152,7 +129,7 @@ export function AccountForm({
             </label>
             <textarea
               value={draft.reposText}
-              onChange={(e) => onChange({ reposText: e.target.value })}
+              onChange={(e) => onChange(draft.key, { reposText: e.target.value })}
               placeholder={meta.reposPlaceholder}
               rows={3}
               spellCheck={false}
@@ -169,7 +146,7 @@ export function AccountForm({
             <button
               type="button"
               className="btn btn--secondary"
-              onClick={onValidate}
+              onClick={() => onValidate(draft)}
               disabled={validating || (!draft.token && !draft.hasToken)}
             >
               {validating ? "Comprobando…" : "Validar token"}
@@ -179,4 +156,4 @@ export function AccountForm({
       )}
     </section>
   );
-}
+});

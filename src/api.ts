@@ -20,6 +20,7 @@ export const getMyPullRequests = () => invoke<PullRequest[]>("get_my_pull_reques
 export const refreshPullRequests = () => invoke<void>("refresh_pull_requests");
 export const openSettingsWindow = () => invoke<void>("open_settings_window");
 export const hideSettingsWindow = () => invoke<void>("hide_settings_window");
+export const hidePopover = () => invoke<void>("hide_popover");
 
 export const onPrsUpdated = (cb: (prs: PullRequest[]) => void): Promise<UnlistenFn> =>
   listen<PullRequest[]>("prs-updated", (e) => cb(e.payload));
@@ -32,3 +33,6 @@ export const onPollError = (cb: (message: string) => void): Promise<UnlistenFn> 
 
 export const onPopoverWillHide = (cb: () => void): Promise<UnlistenFn> =>
   listen("popover-will-hide", () => cb());
+
+export const onPopoverWillShow = (cb: () => void): Promise<UnlistenFn> =>
+  listen("popover-will-show", () => cb());

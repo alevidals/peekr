@@ -1,11 +1,22 @@
+import { lazy, Suspense } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { PopoverWindow } from "./windows/PopoverWindow";
-import { SettingsWindow } from "./windows/SettingsWindow";
 import "./App.css";
 
-// Both windows load the same bundle; the window label decides what to render.
+// Both windows load the same entry; only the one being opened is downloaded.
+const PopoverWindow = lazy(() =>
+  import("./windows/PopoverWindow").then((m) => ({ default: m.PopoverWindow }))
+);
+const SettingsWindow = lazy(() =>
+  import("./windows/SettingsWindow").then((m) => ({ default: m.SettingsWindow }))
+);
+
+// The window label decides what to render.
 const windowLabel = getCurrentWindow().label;
 
 export default function App() {
-  return windowLabel === "settings" ? <SettingsWindow /> : <PopoverWindow />;
+  return (
+    <Suspense fallback={null}>
+      {windowLabel === "settings" ? <SettingsWindow /> : <PopoverWindow />}
+    </Suspense>
+  );
 }

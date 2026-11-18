@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getMyPullRequests,
   getPullRequests,
@@ -17,15 +17,29 @@ export function usePullRequests() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     getPullRequests()
       .then((data) => {
+        if (!mounted) return;
         setPrs(data);
         setLastFetched(new Date());
       })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (mounted) setError(String(e));
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
-    getMyPullRequests().then(setMine).catch(console.error);
+    getMyPullRequests()
+      .then((data) => {
+        if (mounted) setMine(data);
+      })
+      .catch((e) => {
+        if (mounted) setError(String(e));
+      });
+
     const unlistenMine = onMyPrsUpdated(setMine);
 
     const unlistenPrs = onPrsUpdated((data) => {
@@ -41,16 +55,20 @@ export function usePullRequests() {
     });
 
     return () => {
+      mounted = false;
       unlistenMine.then((fn) => fn());
       unlistenPrs.then((fn) => fn());
       unlistenErr.then((fn) => fn());
     };
   }, []);
 
-  function refresh() {
+  const refresh = useCallback(() => {
     setLoading(true);
-    refreshPullRequests().catch(console.error);
-  }
+    refreshPullRequests().catch((e) => {
+      setError(String(e));
+      setLoading(false);
+    });
+  }, []);
 
   return { prs, mine, loading, error, lastFetched, refresh };
 }

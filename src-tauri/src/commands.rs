@@ -140,8 +140,15 @@ pub async fn validate_credentials(
         .or_else(|| account_id.and_then(|id| store.snapshot().tokens.get(&id).cloned()))
         .ok_or_else(|| AppError::Config("No token to validate".into()))?;
 
-    let account = Account { id: String::new(), kind, workspace: String::new(), repos: Vec::new() };
-    provider::build(reqwest::Client::new(), &account, &token).validate().await
+    let account = Account {
+        id: String::new(),
+        kind,
+        workspace: String::new(),
+        repos: Vec::new(),
+    };
+    provider::build(reqwest::Client::new(), &account, &token)
+        .validate()
+        .await
 }
 
 #[tauri::command]
@@ -160,6 +167,14 @@ pub fn refresh_pull_requests(trigger: State<'_, PollTrigger>) -> AppResult<()> {
         .tx
         .send(())
         .map_err(|_| AppError::Config("Failed to trigger refresh".into()))
+}
+
+#[tauri::command]
+pub fn hide_popover(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window(crate::popover::LABEL) {
+        crate::popover::schedule_hide(&win);
+    }
+    Ok(())
 }
 
 #[tauri::command]

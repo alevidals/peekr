@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CiStatus, MergeState, PullRequest } from "../types";
 import { IconBranch, IconCheck, IconMessage, IconX } from "./Icons";
@@ -56,7 +57,7 @@ function MergePill({ pr }: { pr: PullRequest }) {
   );
 }
 
-export function PrItem({ pr, index = 0 }: Props) {
+export const PrItem = memo(function PrItem({ pr, index = 0 }: Props) {
   function handleClick() {
     openUrl(pr.html_url);
   }
@@ -69,7 +70,14 @@ export function PrItem({ pr, index = 0 }: Props) {
     >
       <div className="pr-item-avatar">
         {pr.author_avatar_url ? (
-          <img src={pr.author_avatar_url} alt={pr.author_display_name} />
+          <img
+            src={pr.author_avatar_url}
+            alt={pr.author_display_name}
+            width={30}
+            height={30}
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="pr-item-avatar-fallback">
             {pr.author_display_name.charAt(0).toUpperCase()}
@@ -111,4 +119,4 @@ export function PrItem({ pr, index = 0 }: Props) {
       </div>
     </button>
   );
-}
+});

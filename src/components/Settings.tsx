@@ -1,19 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { getConfig, saveConfig, validateCredentials } from "../api";
-import { applyAppearance, PALETTES } from "../theme";
+import { applyAppearance, PALETTES, paletteAccent } from "../theme";
 import {
   DEFAULT_APPEARANCE,
-  type AccountInput,
   type Appearance,
   type Density,
   type Palette,
   type TextSize,
   type Theme,
 } from "../types";
+import {
+  blankDraft,
+  configToDrafts,
+  draftsToAccounts,
+  isDraftComplete,
+  type AccountDraft,
+} from "../drafts";
 import { IconPlus } from "./Icons";
-import { AccountForm, isDraftComplete, parseRepos, type AccountDraft } from "./AccountForm";
+import { AccountForm } from "./AccountForm";
+import "./Settings.css";
 
 interface Props {
   onSaved: () => void;
@@ -37,27 +44,22 @@ const TEXT_SIZES: { value: TextSize; label: string }[] = [
   { value: "large", label: "Grande" },
 ];
 
-/** The accent shown in the colour input when none is customised. */
-const paletteAccent = (palette: Palette) =>
-  window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? PALETTES[palette].dark.accent
-    : PALETTES[palette].light.accent;
+const MIN_POLLING = 30;
+const MAX_POLLING = 3600;
+const DEFAULT_POLLING = 120;
+
+/** Keeps an out-of-range or empty text field valid without fighting what the user typed. */
+function clampPolling(value: string): number {
+  const secs = Math.round(Number(value));
+  if (!Number.isFinite(secs)) return DEFAULT_POLLING;
+  return Math.min(MAX_POLLING, Math.max(MIN_POLLING, secs));
+}
 
 type Message = { type: "ok" | "error"; text: string };
 
-let draftCounter = 0;
-const blankDraft = (): AccountDraft => ({
-  key: `new-${draftCounter++}`,
-  kind: "bitbucket",
-  workspace: "",
-  token: "",
-  hasToken: false,
-  reposText: "",
-});
-
 export function Settings({ onSaved, onClose }: Props) {
   const [drafts, setDrafts] = useState<AccountDraft[]>([]);
-  const [pollingInterval, setPollingInterval] = useState(120);
+  const [pollingText, setPollingText] = useState(String(DEFAULT_POLLING));
   const [theme, setTheme] = useState<Theme>("system");
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [autostart, setAutostart] = useState(false);
@@ -68,55 +70,85 @@ export function Settings({ onSaved, onClose }: Props) {
   const [validatingKey, setValidatingKey] = useState<string | null>(null);
   // Per-account messages, keyed by draft key; "" is the form-level message.
   const [messages, setMessages] = useState<Record<string, Message | null>>({});
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    getConfig().then((config) => {
-      setPollingInterval(config.polling_interval_secs);
-      setTheme(config.theme);
-      setAppearance(config.appearance);
-      saved.current.theme = config.theme;
-      saved.current.appearance = config.appearance;
-      applyAppearance(config.theme, config.appearance);
-      setDrafts(
-        config.accounts.length === 0
-          ? [blankDraft()]
-          : config.accounts.map((a) => ({
-              key: a.id,
-              id: a.id,
-              kind: a.kind,
-              workspace: a.workspace,
-              token: "",
-              hasToken: a.has_token,
-              reposText: a.repos.join("\n"),
-            }))
-      );
-    });
+    let mounted = true;
+    getConfig()
+      .then((config) => {
+        if (!mounted) return;
+        setPollingText(String(config.polling_interval_secs));
+        setTheme(config.theme);
+        setAppearance(config.appearance);
+        saved.current.theme = config.theme;
+        saved.current.appearance = config.appearance;
+        applyAppearance(config.theme, config.appearance);
+        setDrafts(configToDrafts(config));
+      })
+      .catch(console.error);
     // Autostart is registered with the OS, not stored in our config.
     isEnabled()
       .then((enabled) => {
+        if (!mounted) return;
         saved.current.autostart = enabled;
         setAutostart(enabled);
       })
       .catch(console.error);
+
+    return () => {
+      mounted = false;
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    };
   }, []);
 
-  const setMessage = (key: string, message: Message | null) =>
-    setMessages((m) => ({ ...m, [key]: message }));
+  const setMessage = useCallback(
+    (key: string, message: Message | null) =>
+      setMessages((m) => ({ ...m, [key]: message })),
+    []
+  );
 
-  const updateDraft = (key: string, patch: Partial<AccountDraft>) => {
-    setDrafts((ds) =>
-      ds.map((d) => {
-        if (d.key !== key) return d;
-        // Workspace, token and repos mean nothing for another provider: start a fresh
-        // account (no id, so the old one and its stored token are dropped on save).
-        if (patch.kind && patch.kind !== d.kind) {
-          return { ...blankDraft(), key: d.key, kind: patch.kind };
-        }
-        return { ...d, ...patch };
-      })
-    );
-    if (patch.kind) setMessage(key, null);
-  };
+  const handleDraftChange = useCallback(
+    (key: string, patch: Partial<AccountDraft>) => {
+      // Created outside the updater so the updater stays pure (StrictMode runs it twice).
+      const reset = patch.kind ? blankDraft(patch.kind) : null;
+      setDrafts((ds) =>
+        ds.map((d) => {
+          if (d.key !== key) return d;
+          // Workspace, token and repos mean nothing for another provider: start a fresh
+          // account (no id, so the old one and its stored token are dropped on save).
+          if (reset && patch.kind !== d.kind) return { ...reset, key: d.key };
+          return { ...d, ...patch };
+        })
+      );
+      if (patch.kind) setMessage(key, null);
+    },
+    [setMessage]
+  );
+
+  const handleRemove = useCallback((key: string) => {
+    setDrafts((ds) => ds.filter((d) => d.key !== key));
+    setMessages((m) => {
+      const next = { ...m };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleValidate = useCallback(
+    async (draft: AccountDraft) => {
+      setValidatingKey(draft.key);
+      setMessage(draft.key, null);
+      try {
+        const userId = await validateCredentials(draft.kind, draft.id, draft.token || undefined);
+        setMessage(draft.key, { type: "ok", text: `✓ Conectado (account: ${userId})` });
+      } catch (e) {
+        setMessage(draft.key, { type: "error", text: String(e) });
+      } finally {
+        setValidatingKey(null);
+      }
+    },
+    [setMessage]
+  );
 
   // Live preview; reverted on cancel.
   function changeLook(nextTheme: Theme, nextAppearance: Appearance) {
@@ -128,6 +160,10 @@ export function Settings({ onSaved, onClose }: Props) {
   const patchAppearance = (patch: Partial<Appearance>) => changeLook(theme, { ...appearance, ...patch });
 
   function handleClose() {
+    if (savedTimer.current) {
+      clearTimeout(savedTimer.current);
+      savedTimer.current = null;
+    }
     applyAppearance(saved.current.theme, saved.current.appearance);
     setTheme(saved.current.theme);
     setAppearance(saved.current.appearance);
@@ -135,31 +171,13 @@ export function Settings({ onSaved, onClose }: Props) {
     onClose?.();
   }
 
-  async function handleValidate(draft: AccountDraft) {
-    setValidatingKey(draft.key);
-    setMessage(draft.key, null);
-    try {
-      const userId = await validateCredentials(draft.kind, draft.id, draft.token || undefined);
-      setMessage(draft.key, { type: "ok", text: `✓ Conectado (account: ${userId})` });
-    } catch (e) {
-      setMessage(draft.key, { type: "error", text: String(e) });
-    } finally {
-      setValidatingKey(null);
-    }
-  }
-
   async function handleSave() {
     setSaving(true);
     setMessage("", null);
+    const polling = clampPolling(pollingText);
     try {
-      const accounts: AccountInput[] = drafts.map((d) => ({
-        id: d.id,
-        kind: d.kind,
-        workspace: d.workspace.trim(),
-        repos: parseRepos(d.reposText),
-        token: d.token || undefined,
-      }));
-      await saveConfig(pollingInterval, theme, appearance, accounts);
+      await saveConfig(polling, theme, appearance, draftsToAccounts(drafts));
+      setPollingText(String(polling));
       saved.current.theme = theme;
       saved.current.appearance = appearance;
       if (autostart !== saved.current.autostart) {
@@ -167,7 +185,8 @@ export function Settings({ onSaved, onClose }: Props) {
         saved.current.autostart = autostart;
       }
       setMessage("", { type: "ok", text: "¡Guardado!" });
-      setTimeout(onSaved, 600);
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(onSaved, 600);
     } catch (e) {
       setMessage("", { type: "error", text: String(e) });
     } finally {
@@ -199,9 +218,9 @@ export function Settings({ onSaved, onClose }: Props) {
               defaultOpen={drafts.length === 1 || !isDraftComplete(draft)}
               message={messages[draft.key] ?? null}
               validating={validatingKey === draft.key}
-              onChange={(patch) => updateDraft(draft.key, patch)}
-              onValidate={() => handleValidate(draft)}
-              onRemove={() => setDrafts((ds) => ds.filter((d) => d.key !== draft.key))}
+              onChange={handleDraftChange}
+              onValidate={handleValidate}
+              onRemove={handleRemove}
             />
           ))}
 
@@ -226,10 +245,12 @@ export function Settings({ onSaved, onClose }: Props) {
             <div className="input-suffix">
               <input
                 type="number"
-                value={pollingInterval}
-                min={30}
-                max={3600}
-                onChange={(e) => setPollingInterval(Number(e.target.value))}
+                value={pollingText}
+                min={MIN_POLLING}
+                max={MAX_POLLING}
+                inputMode="numeric"
+                onChange={(e) => setPollingText(e.target.value)}
+                onBlur={() => setPollingText(String(clampPolling(pollingText)))}
               />
               <span>s</span>
             </div>
@@ -296,7 +317,7 @@ export function Settings({ onSaved, onClose }: Props) {
                   aria-label={PALETTES[palette].label}
                   title={PALETTES[palette].label}
                   className={`swatch${appearance.palette === palette ? " swatch--active" : ""}`}
-                  style={{ background: paletteAccent(palette) }}
+                  style={{ background: paletteAccent(palette, theme) }}
                   onClick={() => patchAppearance({ palette, accent: null })}
                 />
               ))}
@@ -317,7 +338,7 @@ export function Settings({ onSaved, onClose }: Props) {
                 type="color"
                 className="accent-input"
                 aria-label="Color de acento"
-                value={appearance.accent ?? paletteAccent(appearance.palette)}
+                value={appearance.accent ?? paletteAccent(appearance.palette, theme)}
                 onChange={(e) => patchAppearance({ accent: e.target.value })}
               />
             </div>

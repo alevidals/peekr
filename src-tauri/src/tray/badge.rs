@@ -1,52 +1,45 @@
-use image::Rgba;
-use imageproc::drawing::draw_filled_circle_mut;
+//! Tray icon drawing.
+//!
+//! On macOS the status item image is a template: macOS tints it from the actual menu bar
+//! background, so it stays visible over any wallpaper, Space or full-screen app. The badge
+//! and the dev marker are drawn as layers on top of the status item button instead of being
+//! baked into the image (see `update_overlay` in the parent module).
 
 const BASE_ICON: &[u8] = include_bytes!("../../icons/tray-icon.png");
-const ICON_SIZE: u32 = 44;
 
-/// True in debug builds (`tauri dev`): the tray icon gets a dev marker and can't be a template.
+/// True in debug builds (`tauri dev`): the tray icon gets a dev marker.
 pub const DEV: bool = cfg!(debug_assertions);
 
+#[cfg(target_os = "macos")]
+pub fn template_icon() -> tauri::Result<tauri::image::Image<'static>> {
+    tauri::image::Image::from_bytes(BASE_ICON)
+}
+
+#[cfg(not(target_os = "macos"))]
+const ICON_SIZE: u32 = 44;
+
+#[cfg(not(target_os = "macos"))]
 pub fn plain_icon() -> tauri::Result<tauri::image::Image<'static>> {
     if DEV {
-        return Ok(tauri::image::Image::new_owned(render(false), ICON_SIZE, ICON_SIZE));
+        return Ok(tauri::image::Image::new_owned(
+            render(false),
+            ICON_SIZE,
+            ICON_SIZE,
+        ));
     }
     tauri::image::Image::from_bytes(BASE_ICON)
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn badge_icon() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(render(true), ICON_SIZE, ICON_SIZE)
 }
 
-fn is_dark_mode() -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        use objc::{class, msg_send, sel, sel_impl};
-        use std::ffi::CStr;
-        unsafe {
-            let defaults: *mut objc::runtime::Object =
-                msg_send![class!(NSUserDefaults), standardUserDefaults];
-            let key = b"AppleInterfaceStyle\0";
-            let ns_key: *mut objc::runtime::Object = msg_send![
-                class!(NSString),
-                stringWithUTF8String: key.as_ptr() as *const i8
-            ];
-            let value: *mut objc::runtime::Object = msg_send![defaults, stringForKey: ns_key];
-            if value.is_null() {
-                return false;
-            }
-            let c_str: *const i8 = msg_send![value, UTF8String];
-            if c_str.is_null() {
-                return false;
-            }
-            CStr::from_ptr(c_str).to_str().unwrap_or("") == "Dark"
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    false
-}
-
+#[cfg(not(target_os = "macos"))]
 fn render(badge: bool) -> Vec<u8> {
+    use image::Rgba;
+    use imageproc::drawing::draw_filled_circle_mut;
+
     let base = image::load_from_memory_with_format(BASE_ICON, image::ImageFormat::Png)
         .unwrap_or_else(|_| image::DynamicImage::new_rgba8(ICON_SIZE, ICON_SIZE));
     let mut img = base.to_rgba8();
@@ -60,13 +53,11 @@ fn render(badge: bool) -> Vec<u8> {
         );
     }
 
-    // Recolor the icon to match the menu bar: white in dark mode, black in light mode
-    let icon_rgb: [u8; 3] = if is_dark_mode() { [255, 255, 255] } else { [0, 0, 0] };
     for pixel in img.pixels_mut() {
         if pixel[3] > 0 {
-            pixel[0] = icon_rgb[0];
-            pixel[1] = icon_rgb[1];
-            pixel[2] = icon_rgb[2];
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
         }
     }
 

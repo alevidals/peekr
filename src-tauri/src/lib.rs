@@ -19,19 +19,25 @@ use crate::state::{ConfigStore, PollTrigger, PrState};
 pub fn run() {
     env_logger::init();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
-        ))
+        ));
+
+    // Turns the popover into an NSPanel (see popover.rs); macOS only.
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_nspanel::init());
+
+    builder
         .setup(|app| {
             // Keep the app as a pure tray/accessory app — no Dock icon, no menu-bar
             // app-name slot.  Info.plist sets LSUIElement for the bundle, but the
             // runtime call is needed so dev mode (bun run tauri dev) behaves the same way.
             #[cfg(target_os = "macos")]
-            let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let store = ConfigStore::load(app.handle()).unwrap_or_else(|e| {
                 log::error!("[config] failed to load, starting empty: {e}");
@@ -66,6 +72,7 @@ pub fn run() {
             commands::refresh_pull_requests,
             commands::open_settings_window,
             commands::hide_settings_window,
+            commands::hide_popover,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,8 +1,12 @@
 import type { PullRequest } from "./types";
 
-/** Every whitespace-separated term must appear in the PR's title, author, repo, branches or number. */
-export function matchesQuery(pr: PullRequest, query: string): boolean {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+/** A query split into lowercase terms. Normalise once and reuse for every PR. */
+export function parseQuery(query: string): string[] {
+  return query.toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** Every term must appear in the PR's title, author, repo, branches or number. */
+export function matchesTerms(pr: PullRequest, terms: string[]): boolean {
   if (terms.length === 0) return true;
   const haystack = [
     pr.title,

@@ -67,6 +67,11 @@ function readableOn(hex: string): string {
 
 let current: { theme: Theme; appearance: Appearance } = { theme: "system", appearance: DEFAULT_APPEARANCE };
 
+/** The accent a palette resolves to; the settings preview uses it for its swatches. */
+export function paletteAccent(palette: Palette, theme: Theme = current.theme): string {
+  return PALETTES[palette][isDark(theme) ? "dark" : "light"].accent;
+}
+
 /**
  * Applies light/dark/system plus the palette, accent, density and text size to the page.
  * "system" leaves `data-theme` off so the `prefers-color-scheme` CSS applies.

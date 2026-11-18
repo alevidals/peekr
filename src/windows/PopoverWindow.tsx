@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { openSettingsWindow } from "../api";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { hidePopover, openSettingsWindow } from "../api";
 import { EmptyState } from "../components/EmptyState";
 import { IconAlert, IconCircleCheck, IconPencil, IconRefresh, IconSearch, IconSettings, IconX } from "../components/Icons";
 import { PrList } from "../components/PrList";
-import { matchesQuery } from "../search";
+import { matchesTerms, parseQuery } from "../search";
 import { useConfig } from "../hooks/useConfig";
 import { usePopoverAnimation } from "../hooks/usePopoverAnimation";
 import { usePullRequests } from "../hooks/usePullRequests";
+
+/** Restart the CSS entrance animation on the same node, without remounting the list. */
+function restartAnimation(el: HTMLElement) {
+  el.style.animation = "none";
+  void el.offsetWidth;
+  el.style.animation = "";
+}
 
 export function PopoverWindow() {
   const [tab, setTab] = useState<"review" | "mine">("review");
@@ -15,11 +22,13 @@ export function PopoverWindow() {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  function closeSearch() {
+  const closeSearch = useCallback(() => {
     setSearching(false);
     setQuery("");
-  }
+  }, []);
 
   const { config, isConfigured, reload: reloadConfig } = useConfig();
   // Settings are edited in another window, so re-read them whenever the popover opens.
@@ -27,35 +36,76 @@ export function PopoverWindow() {
   const onOpen = useCallback(() => {
     reloadConfig();
     closeSearch();
-  }, [reloadConfig]);
+  }, [reloadConfig, closeSearch]);
   const { animKey, closing } = usePopoverAnimation(onOpen);
   const { prs: reviewPrs, mine, loading, error, lastFetched, refresh } = usePullRequests();
   const prs = tab === "review" ? reviewPrs : mine;
-  const readyCount = mine.filter((pr) => pr.merge?.state === "ready").length;
 
-  const draftCount = prs.filter((pr) => pr.draft).length;
-  const hasCi = prs.some((pr) => pr.ci_status !== null);
+  const hasPrs = prs.length > 0;
   const activeQuery = searching ? query : "";
-  const visiblePrs = prs.filter(
-    (pr) =>
-      !(hideDraft && pr.draft) &&
-      !(onlyPassing && pr.ci_status !== "success") &&
-      matchesQuery(pr, activeQuery)
+  // Filtering runs on the deferred value so typing stays responsive on long lists. When the
+  // search is closed the terms are empty immediately, instead of keeping the last query for
+  // a frame while the deferred value catches up.
+  const deferredQuery = useDeferredValue(activeQuery);
+  const terms = useMemo(
+    () => (activeQuery === "" ? [] : parseQuery(deferredQuery)),
+    [activeQuery, deferredQuery]
+  );
+  const visiblePrs = useMemo(
+    () =>
+      prs.filter(
+        (pr) =>
+          !(hideDraft && pr.draft) &&
+          !(onlyPassing && pr.ci_status !== "success") &&
+          matchesTerms(pr, terms)
+      ),
+    [prs, hideDraft, onlyPassing, terms]
   );
 
-  // "/" opens the search from anywhere in the popover.
+  // The header badges need three counts from the same lists: one pass instead of three.
+  const { draftCount, hasCi, readyCount } = useMemo(() => {
+    let drafts = 0;
+    let ci = false;
+    for (const pr of prs) {
+      if (pr.draft) drafts++;
+      if (pr.ci_status !== null) ci = true;
+    }
+    let ready = 0;
+    for (const pr of mine) if (pr.merge?.state === "ready") ready++;
+    return { draftCount: drafts, hasCi: ci, readyCount: ready };
+  }, [prs, mine]);
+
+  // Replay the entrance animation without remounting the whole tree, and start at the top.
+  // The webview mounts hidden, so the first focus also needs a restart to be visible. This
+  // runs before paint to avoid a frame at full size followed by the animation's first frame.
+  useLayoutEffect(() => {
+    if (closing) return;
+    if (popoverRef.current) restartAnimation(popoverRef.current);
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [animKey, closing]);
+
+  // Escape hides the popover through the same animated path as click-outside; "/" opens
+  // the search from anywhere. Depending on the boolean (not the list length) keeps the
+  // listener from resubscribing every time the PR list changes.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-      if (e.key === "/" && !typing && prs.length > 0) {
+      if (e.key === "Escape") {
+        // While the search is open, its input closes the search first.
+        if (e.target === searchRef.current) return;
         e.preventDefault();
-        setSearching(true);
-        searchRef.current?.focus();
+        hidePopover().catch(console.error);
+        return;
       }
+      if (e.key !== "/" || !hasPrs) return;
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      if (typing) return;
+      e.preventDefault();
+      setSearching(true);
+      searchRef.current?.focus();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [prs.length]);
+  }, [hasPrs]);
 
   function renderContent() {
     if (config === undefined) return <EmptyState type="loading" />;
@@ -68,14 +118,14 @@ export function PopoverWindow() {
   }
 
   return (
-    <div key={animKey} className={`popover${closing ? " popover--closing" : ""}`}>
+    <div ref={popoverRef} className={`popover${closing ? " popover--closing" : ""}`}>
       <header className="popover-header">
         <div className="popover-brand">
           <img className="popover-logo" src="/app-icon.png" alt="" />
           <span className="popover-title">peekr</span>
         </div>
         <div className="popover-header-actions">
-          {prs.length > 0 && (
+          {hasPrs && (
             <button
               className={`icon-btn${searching ? " filter-btn--active" : ""}`}
               title="Search ( / )"
@@ -167,7 +217,7 @@ export function PopoverWindow() {
 
       {error && <div className="error-banner"><IconAlert size={13} /> <span>{error}</span></div>}
 
-      <div className="popover-content">{renderContent()}</div>
+      <div ref={contentRef} className="popover-content">{renderContent()}</div>
 
       {isConfigured && (
         <footer className="popover-footer">
@@ -179,7 +229,9 @@ export function PopoverWindow() {
               : ""}
           </span>
           <button className="refresh-btn" onClick={refresh} title="Refresh">
-            <IconRefresh size={14} className={loading ? "spin" : undefined} />
+            <span className={loading ? "spin" : undefined}>
+              <IconRefresh size={14} />
+            </span>
           </button>
         </footer>
       )}
