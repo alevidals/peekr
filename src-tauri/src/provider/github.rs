@@ -40,7 +40,13 @@ pub struct Github {
 
 impl Github {
     pub fn new(client: reqwest::Client, account_id: String, owner: String, token: String) -> Self {
-        Self { client, account_id, owner, token, login: OnceCell::new() }
+        Self {
+            client,
+            account_id,
+            owner,
+            token,
+            login: OnceCell::new(),
+        }
     }
 
     fn get(&self, url: &str) -> RequestBuilder {
@@ -56,8 +62,13 @@ impl Github {
     async fn login(&self) -> AppResult<&str> {
         self.login
             .get_or_try_init(|| async {
-                let user: GithubUser =
-                    self.get(&format!("{API}/user")).send().await?.error_for_status()?.json().await?;
+                let user: GithubUser = self
+                    .get(&format!("{API}/user"))
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json()
+                    .await?;
                 Ok::<_, AppError>(user.login)
             })
             .await
@@ -89,9 +100,17 @@ impl Github {
     }
 
     async fn fetch_pull(&self, pull_url: &str, repo: &str) -> AppResult<PullRequest> {
-        let raw: RawPull = self.get(pull_url).send().await?.error_for_status()?.json().await?;
-        let (approvals, ci_status) =
-            tokio::join!(self.approvals(repo, raw.number), self.ci_status(repo, raw.head.sha.as_deref()));
+        let raw: RawPull = self
+            .get(pull_url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let (approvals, ci_status) = tokio::join!(
+            self.approvals(repo, raw.number),
+            self.ci_status(repo, raw.head.sha.as_deref())
+        );
         let mut pr = raw.into_pr(&self.account_id, repo);
         pr.approvals = approvals;
         pr.ci_status = ci_status;
@@ -101,7 +120,12 @@ impl Github {
     /// GET + JSON that maps any failure to `None` (logged), for the optional extras.
     async fn get_optional<T: serde::de::DeserializeOwned>(&self, url: String) -> Option<T> {
         let result: Result<T, reqwest::Error> = async {
-            self.get(&url).send().await?.error_for_status()?.json().await
+            self.get(&url)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await
         }
         .await;
         result
@@ -119,10 +143,15 @@ impl Github {
     async fn ci_status(&self, repo: &str, sha: Option<&str>) -> Option<CiStatus> {
         let sha = sha?;
         let (runs, status) = tokio::join!(
-            self.get_optional::<CheckRuns>(format!("{API}/repos/{repo}/commits/{sha}/check-runs?per_page=100")),
+            self.get_optional::<CheckRuns>(format!(
+                "{API}/repos/{repo}/commits/{sha}/check-runs?per_page=100"
+            )),
             self.get_optional::<CombinedStatus>(format!("{API}/repos/{repo}/commits/{sha}/status")),
         );
-        let from_runs = runs.into_iter().flat_map(|r| r.check_runs).map(|r| r.ci_status());
+        let from_runs = runs
+            .into_iter()
+            .flat_map(|r| r.check_runs)
+            .map(|r| r.ci_status());
         let from_status = status.and_then(|s| s.ci_status());
         CiStatus::combine(from_runs.chain(from_status))
     }
@@ -154,7 +183,10 @@ impl ReviewProvider for Github {
         if let Some(error) = response.errors.as_ref().and_then(|e| e.first()) {
             // Partial data is still usable, but with no data at all the error is the story.
             if response.data.is_none() {
-                return Err(AppError::Provider(format!("GitHub GraphQL: {}", error.message)));
+                return Err(AppError::Provider(format!(
+                    "GitHub GraphQL: {}",
+                    error.message
+                )));
             }
             log::warn!("GitHub GraphQL returned errors: {}", error.message);
         }
@@ -167,7 +199,10 @@ impl ReviewProvider for Github {
             .filter(|node| in_scope(&node.repository.name_with_owner, &self.owner, repos))
             .map(|node| node.into_pr(&self.account_id))
             .collect();
-        Ok(FetchReport { prs, failed_repos: Vec::new() })
+        Ok(FetchReport {
+            prs,
+            failed_repos: Vec::new(),
+        })
     }
 
     async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
@@ -380,7 +415,12 @@ impl GqlContext {
             (None, Some(s)) => matches!(s.as_str(), "FAILURE" | "ERROR"),
             (None, None) => false,
         };
-        failed.then(|| self.name.as_deref().or(self.context.as_deref()).unwrap_or("check"))
+        failed.then(|| {
+            self.name
+                .as_deref()
+                .or(self.context.as_deref())
+                .unwrap_or("check")
+        })
     }
 }
 
@@ -404,7 +444,11 @@ fn assess(pull: &GqlPull, rollup: Option<&GqlRollup>) -> MergeStatus {
     if !failing.is_empty() {
         let shown: Vec<&str> = failing.iter().copied().take(3).collect();
         let more = failing.len() - shown.len();
-        let extra = if more > 0 { format!(" +{more}") } else { String::new() };
+        let extra = if more > 0 {
+            format!(" +{more}")
+        } else {
+            String::new()
+        };
         reasons.push(format!("Failing: {}{extra}", shown.join(", ")));
     }
 
@@ -425,7 +469,10 @@ fn assess(pull: &GqlPull, rollup: Option<&GqlRollup>) -> MergeStatus {
             if pull.review_decision.as_deref() == Some("REVIEW_REQUIRED") {
                 return MergeStatus::new(MergeState::Waiting, vec!["Review required".into()]);
             }
-            MergeStatus::new(MergeState::Blocked, vec!["Blocked by branch protection".into()])
+            MergeStatus::new(
+                MergeState::Blocked,
+                vec!["Blocked by branch protection".into()],
+            )
         }
         _ => MergeStatus::new(MergeState::Unknown, vec![]),
     }
@@ -453,7 +500,9 @@ impl GqlPull {
             .count() as u32;
         let (author, avatar) = self
             .author
-            .map_or(("Unknown".to_string(), String::new()), |a| (a.login, a.avatar_url));
+            .map_or(("Unknown".to_string(), String::new()), |a| {
+                (a.login, a.avatar_url)
+            });
         PullRequest {
             provider: ProviderKind::Github,
             account_id: account_id.to_string(),
@@ -629,7 +678,10 @@ mod tests {
 
     #[test]
     fn extracts_repo_from_api_url() {
-        assert_eq!(repo_full_name("https://api.github.com/repos/acme/web"), Some("acme/web"));
+        assert_eq!(
+            repo_full_name("https://api.github.com/repos/acme/web"),
+            Some("acme/web")
+        );
         assert_eq!(repo_full_name("https://example.com/other"), None);
     }
 
@@ -650,7 +702,9 @@ mod tests {
     #[test]
     fn approvals_use_each_reviewers_latest_verdict() {
         let review = |login: &str, state: &str| RawReview {
-            user: Some(ReviewUser { login: login.into() }),
+            user: Some(ReviewUser {
+                login: login.into(),
+            }),
             state: state.into(),
         };
         let reviews = [
@@ -666,14 +720,24 @@ mod tests {
     #[test]
     fn maps_check_runs_and_statuses() {
         let run = |status: &str, conclusion: Option<&str>| {
-            CheckRun { status: status.into(), conclusion: conclusion.map(Into::into) }.ci_status()
+            CheckRun {
+                status: status.into(),
+                conclusion: conclusion.map(Into::into),
+            }
+            .ci_status()
         };
         assert_eq!(run("completed", Some("success")), CiStatus::Success);
         assert_eq!(run("completed", Some("skipped")), CiStatus::Success);
         assert_eq!(run("completed", Some("failure")), CiStatus::Failed);
         assert_eq!(run("in_progress", None), CiStatus::Pending);
 
-        let status = |state: &str, total_count| CombinedStatus { state: state.into(), total_count }.ci_status();
+        let status = |state: &str, total_count| {
+            CombinedStatus {
+                state: state.into(),
+                total_count,
+            }
+            .ci_status()
+        };
         assert_eq!(status("pending", 0), None);
         assert_eq!(status("failure", 2), Some(CiStatus::Failed));
     }
@@ -712,7 +776,10 @@ mod tests {
         let pr = gql_pull("BLOCKED", Some("CHANGES_REQUESTED"), FAILING).into_pr("acc");
         let merge = pr.merge.unwrap();
         assert_eq!(merge.state, MergeState::Blocked);
-        assert_eq!(merge.blockers, vec!["Changes requested", "Failing: build, ci/legacy"]);
+        assert_eq!(
+            merge.blockers,
+            vec!["Changes requested", "Failing: build, ci/legacy"]
+        );
         assert_eq!(pr.ci_status, Some(CiStatus::Failed));
     }
 
@@ -721,7 +788,10 @@ mod tests {
         let running = r#"{"state":"PENDING","contexts":{"nodes":[]}}"#;
         let state = |d, r| gql_pull("BLOCKED", d, r).into_pr("a").merge.unwrap();
         assert_eq!(state(None, running).blockers, vec!["Checks running"]);
-        assert_eq!(state(Some("REVIEW_REQUIRED"), PASSING).blockers, vec!["Review required"]);
+        assert_eq!(
+            state(Some("REVIEW_REQUIRED"), PASSING).blockers,
+            vec!["Review required"]
+        );
         assert_eq!(state(None, PASSING).state, MergeState::Blocked);
     }
 
@@ -749,7 +819,10 @@ mod tests {
                 "pull_request":{"url":"https://api.github.com/repos/acme/web/pulls/7"},"extra":1}"#,
         )
         .unwrap();
-        assert_eq!(item.pull_request.unwrap().url, "https://api.github.com/repos/acme/web/pulls/7");
+        assert_eq!(
+            item.pull_request.unwrap().url,
+            "https://api.github.com/repos/acme/web/pulls/7"
+        );
 
         let pr = serde_json::from_str::<RawPull>(
             r#"{"number":7,"title":"Add x","html_url":"https://github.com/acme/web/pull/7",
@@ -761,7 +834,10 @@ mod tests {
         .into_pr("acc", "acme/web");
         assert_eq!(pr.key(), "acc/acme/web#7");
         assert_eq!((pr.comment_count, pr.draft), (5, true));
-        assert_eq!((pr.source_branch.as_str(), pr.destination_branch.as_str()), ("feat", "main"));
+        assert_eq!(
+            (pr.source_branch.as_str(), pr.destination_branch.as_str()),
+            ("feat", "main")
+        );
         assert_eq!(pr.author_display_name, "octo");
     }
 }

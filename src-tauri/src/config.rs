@@ -200,7 +200,9 @@ fn migrate_v1(app: &AppHandle, old: ConfigV1) -> AppResult<AppConfig> {
         let id = uuid::Uuid::new_v4().to_string();
         let legacy_keychain = secrets::get_legacy_token()?;
         had_legacy_keychain_entry = legacy_keychain.is_some();
-        let token = Some(old.token).filter(|t| !t.is_empty()).or(legacy_keychain);
+        let token = Some(old.token)
+            .filter(|t| !t.is_empty())
+            .or(legacy_keychain);
         if let Some(token) = token {
             secrets::set_token(&id, &token)?;
         }
@@ -262,7 +264,8 @@ mod tests {
     #[test]
     fn theme_defaults_to_system_for_older_files() {
         let config: AppConfig =
-            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#).unwrap();
+            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#)
+                .unwrap();
         assert_eq!(config.theme, Theme::System);
 
         let dark: AppConfig = serde_json::from_str(
@@ -275,15 +278,23 @@ mod tests {
     #[test]
     fn appearance_defaults_and_validates_accent() {
         let config: AppConfig =
-            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#).unwrap();
+            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#)
+                .unwrap();
         assert_eq!(config.appearance, Appearance::default());
 
-        let partial: Appearance = serde_json::from_str(r##"{"palette":"green","accent":"#12ab9F"}"##).unwrap();
-        assert_eq!((partial.palette, partial.density), (Palette::Green, Density::Comfortable));
+        let partial: Appearance =
+            serde_json::from_str(r##"{"palette":"green","accent":"#12ab9F"}"##).unwrap();
+        assert_eq!(
+            (partial.palette, partial.density),
+            (Palette::Green, Density::Comfortable)
+        );
         assert_eq!(partial.sanitized().accent.as_deref(), Some("#12ab9F"));
 
         for bad in ["red", "#12345", "#12345g", "12ab9f1", "url(x)"] {
-            let a = Appearance { accent: Some(bad.into()), ..Default::default() };
+            let a = Appearance {
+                accent: Some(bad.into()),
+                ..Default::default()
+            };
             assert_eq!(a.sanitized().accent, None, "{bad}");
         }
     }

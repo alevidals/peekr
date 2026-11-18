@@ -30,7 +30,12 @@ pub struct Bitbucket {
 }
 
 impl Bitbucket {
-    pub fn new(client: reqwest::Client, account_id: String, workspace: String, token: String) -> Self {
+    pub fn new(
+        client: reqwest::Client,
+        account_id: String,
+        workspace: String,
+        token: String,
+    ) -> Self {
         Self {
             client,
             account_id,
@@ -53,14 +58,18 @@ impl Bitbucket {
                     .error_for_status()?
                     .json()
                     .await?;
-                user.account_id
-                    .ok_or_else(|| AppError::Provider("Missing account_id in /user response".into()))
+                user.account_id.ok_or_else(|| {
+                    AppError::Provider("Missing account_id in /user response".into())
+                })
             })
             .await
             .map(String::as_str)
     }
 
-    async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T, reqwest::Error> {
+    async fn get_json<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<T, reqwest::Error> {
         self.client
             .get(url)
             .bearer_auth(&self.token)
@@ -103,7 +112,12 @@ impl Bitbucket {
         }
     }
 
-    async fn fetch_repo(&self, repo: &str, user_id: &str, role: Role) -> AppResult<Vec<PullRequest>> {
+    async fn fetch_repo(
+        &self,
+        repo: &str,
+        user_id: &str,
+        role: Role,
+    ) -> AppResult<Vec<PullRequest>> {
         let mut raws = Vec::new();
         let mut use_q = self.use_q_filter.load(Ordering::Relaxed);
         let workspace = &self.workspace;
@@ -120,12 +134,19 @@ impl Bitbucket {
 
         while let Some(next_url) = url {
             log::info!("GET {next_url}");
-            let response = self.client.get(&next_url).bearer_auth(&self.token).send().await?;
+            let response = self
+                .client
+                .get(&next_url)
+                .bearer_auth(&self.token)
+                .send()
+                .await?;
             let status = response.status();
             log::info!("  → HTTP {status}");
 
             if use_q && status == 400 {
-                log::info!("  q filter not supported, switching to full fetch + client-side filter");
+                log::info!(
+                    "  q filter not supported, switching to full fetch + client-side filter"
+                );
                 use_q = false;
                 self.use_q_filter.store(false, Ordering::Relaxed);
                 url = Some(open_prs_url(workspace, repo));
@@ -137,7 +158,9 @@ impl Bitbucket {
             for raw in page.values {
                 let wanted = match role {
                     // Once approved there is nothing left to do, so it is not "pending review".
-                    Role::Reviewer => !raw.is_approved_by(user_id) && (use_q || raw.is_reviewer(user_id)),
+                    Role::Reviewer => {
+                        !raw.is_approved_by(user_id) && (use_q || raw.is_reviewer(user_id))
+                    }
                     Role::Author => use_q || raw.is_author(user_id),
                 };
                 if wanted {
@@ -149,11 +172,15 @@ impl Bitbucket {
 
         Ok(join_all(raws.into_iter().map(|raw| async move {
             let (ci_status, checks) = if role == Role::Author {
-                tokio::join!(self.ci_status(repo, raw.id), self.merge_checks(repo, raw.id))
+                tokio::join!(
+                    self.ci_status(repo, raw.id),
+                    self.merge_checks(repo, raw.id)
+                )
             } else {
                 (self.ci_status(repo, raw.id).await, None)
             };
-            let merge = (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
+            let merge =
+                (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
             let mut pr = raw.into_pr(&self.account_id, repo);
             pr.ci_status = ci_status;
             pr.merge = merge;
@@ -180,7 +207,9 @@ impl Role {
 }
 
 fn open_prs_url(workspace: &str, repo: &str) -> String {
-    format!("{API}/repositories/{workspace}/{repo}/pullrequests?state=OPEN&pagelen=50&fields={FIELDS}")
+    format!(
+        "{API}/repositories/{workspace}/{repo}/pullrequests?state=OPEN&pagelen=50&fields={FIELDS}"
+    )
 }
 
 #[async_trait]
@@ -202,10 +231,11 @@ impl Bitbucket {
     async fn fetch_all(&self, repos: &[String], role: Role) -> AppResult<FetchReport> {
         let user_id = self.user_id().await?;
 
-        let results = join_all(repos.iter().map(|repo| async move {
-            (repo.clone(), self.fetch_repo(repo, user_id, role).await)
-        }))
-        .await;
+        let results =
+            join_all(repos.iter().map(|repo| async move {
+                (repo.clone(), self.fetch_repo(repo, user_id, role).await)
+            }))
+            .await;
 
         let mut prs = Vec::new();
         let mut failed_repos = Vec::new();
@@ -341,14 +371,25 @@ impl MergeCheck {
     }
 
     fn number(value: &Option<serde_json::Value>, key: &str) -> u64 {
-        value.as_ref().and_then(|v| v.get(key)).and_then(|n| n.as_u64()).unwrap_or(0)
+        value
+            .as_ref()
+            .and_then(|v| v.get(key))
+            .and_then(|n| n.as_u64())
+            .unwrap_or(0)
     }
 
     /// State and message for a failed check.
     fn blocker(&self) -> (MergeState, String) {
-        let kind = self.check.as_ref().map_or(self.kind.as_str(), |c| c.kind.as_str());
+        let kind = self
+            .check
+            .as_ref()
+            .map_or(self.kind.as_str(), |c| c.kind.as_str());
         let progress = |required: &str, observed: &str| {
-            format!("{}/{}", Self::number(&self.observed, observed), Self::number(&self.requirement, required))
+            format!(
+                "{}/{}",
+                Self::number(&self.observed, observed),
+                Self::number(&self.requirement, required)
+            )
         };
         match kind {
             "git_mergeability_check" if self.reason.as_deref() == Some("conflicts") => {
@@ -356,11 +397,17 @@ impl MergeCheck {
             }
             "minimum_approvals" => (
                 MergeState::Waiting,
-                format!("Approvals {}", progress("minimum_approvals", "approval_count")),
+                format!(
+                    "Approvals {}",
+                    progress("minimum_approvals", "approval_count")
+                ),
             ),
             "minimum_successful_builds" => (
                 MergeState::Waiting,
-                format!("Successful builds {}", progress("minimum_successful_builds", "successful_build_count")),
+                format!(
+                    "Successful builds {}",
+                    progress("minimum_successful_builds", "successful_build_count")
+                ),
             ),
             "in_progress_builds" => (MergeState::Waiting, "Pipeline running".to_string()),
             "failed_builds" => (MergeState::Blocked, "Pipeline failed".to_string()),
@@ -371,7 +418,12 @@ impl MergeCheck {
 
 /// Readiness from Bitbucket's own merge checks. Changes requested and open tasks are kept
 /// from the PR payload because they only show up as checks when the repo enforces them.
-fn assess_checks(draft: bool, changes_requested: bool, open_tasks: u32, checks: &[MergeCheck]) -> MergeStatus {
+fn assess_checks(
+    draft: bool,
+    changes_requested: bool,
+    open_tasks: u32,
+    checks: &[MergeCheck],
+) -> MergeStatus {
     if draft {
         return MergeStatus::new(MergeState::Draft, vec![]);
     }
@@ -392,11 +444,19 @@ fn assess_checks(draft: bool, changes_requested: bool, open_tasks: u32, checks: 
     };
     let mut worst = MergeState::Ready;
     if changes_requested {
-        push(MergeState::Blocked, "Changes requested".to_string(), &mut worst);
+        push(
+            MergeState::Blocked,
+            "Changes requested".to_string(),
+            &mut worst,
+        );
     }
     if open_tasks > 0 {
         let noun = if open_tasks == 1 { "task" } else { "tasks" };
-        push(MergeState::Blocked, format!("{open_tasks} open {noun}"), &mut worst);
+        push(
+            MergeState::Blocked,
+            format!("{open_tasks} open {noun}"),
+            &mut worst,
+        );
     }
     for check in checks.iter().filter(|c| c.failed()) {
         let (state, message) = check.blocker();
@@ -408,7 +468,13 @@ fn assess_checks(draft: bool, changes_requested: bool, open_tasks: u32, checks: 
 /// Bitbucket exposes no "mergeable" verdict and the merge rules need admin access to read,
 /// so readiness is inferred from what any user can see: build statuses, approvals, requested
 /// changes and open tasks. Merge conflicts are not detectable this way.
-fn assess(draft: bool, approvals: u32, changes_requested: bool, open_tasks: u32, ci: Option<CiStatus>) -> MergeStatus {
+fn assess(
+    draft: bool,
+    approvals: u32,
+    changes_requested: bool,
+    open_tasks: u32,
+    ci: Option<CiStatus>,
+) -> MergeStatus {
     if draft {
         return MergeStatus::new(MergeState::Draft, vec![]);
     }
@@ -420,7 +486,10 @@ fn assess(draft: bool, approvals: u32, changes_requested: bool, open_tasks: u32,
         blockers.push("Pipeline failed".to_string());
     }
     if open_tasks > 0 {
-        blockers.push(format!("{open_tasks} open {}", if open_tasks == 1 { "task" } else { "tasks" }));
+        blockers.push(format!(
+            "{open_tasks} open {}",
+            if open_tasks == 1 { "task" } else { "tasks" }
+        ));
     }
     if !blockers.is_empty() {
         return MergeStatus::new(MergeState::Blocked, blockers);
@@ -452,7 +521,13 @@ impl RawPullRequest {
         let open_tasks = self.task_count.unwrap_or(0);
         match checks {
             Some(checks) => assess_checks(self.draft, changes_requested, open_tasks, checks),
-            None => assess(self.draft, self.approvals(), changes_requested, open_tasks, ci),
+            None => assess(
+                self.draft,
+                self.approvals(),
+                changes_requested,
+                open_tasks,
+                ci,
+            ),
         }
     }
 
@@ -472,7 +547,11 @@ impl RawPullRequest {
     }
 
     fn approvals(&self) -> u32 {
-        self.participants.iter().flatten().filter(|p| p.approved).count() as u32
+        self.participants
+            .iter()
+            .flatten()
+            .filter(|p| p.approved)
+            .count() as u32
     }
 
     fn into_pr(self, account_id: &str, repo: &str) -> PullRequest {
@@ -559,17 +638,28 @@ mod tests {
     fn assesses_merge_readiness() {
         use CiStatus::*;
         use MergeState::*;
-        let state = |draft, approvals, changes, tasks, ci| assess(draft, approvals, changes, tasks, ci).state;
+        let state = |draft, approvals, changes, tasks, ci| {
+            assess(draft, approvals, changes, tasks, ci).state
+        };
         assert_eq!(state(true, 2, false, 0, Some(Success)), Draft);
         assert_eq!(state(false, 1, false, 0, Some(Success)), Ready);
         assert_eq!(state(false, 1, false, 0, None), Ready);
-        assert_eq!(state(false, 0, false, 0, Some(Success)), MergeState::Waiting);
-        assert_eq!(state(false, 1, false, 0, Some(Pending)), MergeState::Waiting);
+        assert_eq!(
+            state(false, 0, false, 0, Some(Success)),
+            MergeState::Waiting
+        );
+        assert_eq!(
+            state(false, 1, false, 0, Some(Pending)),
+            MergeState::Waiting
+        );
         assert_eq!(state(false, 1, false, 0, Some(Failed)), Blocked);
         assert_eq!(state(false, 1, true, 0, Some(Success)), Blocked);
         assert_eq!(state(false, 1, false, 2, Some(Success)), Blocked);
         // A blocker wins over a missing approval.
-        assert_eq!(assess(false, 0, false, 1, None).blockers, vec!["1 open task"]);
+        assert_eq!(
+            assess(false, 0, false, 1, None).blockers,
+            vec!["1 open task"]
+        );
     }
 
     #[test]
@@ -622,9 +712,18 @@ mod tests {
             r#"{"values":[{"type":"git_mergeability_check","status":"FAILED","blocking":true,"reason":"conflicts"}]}"#,
         )
         .unwrap();
-        assert_eq!(assess_checks(false, false, 0, &conflicts.values).state, MergeState::Conflicts);
-        assert_eq!(assess_checks(false, true, 0, &[]).state, MergeState::Blocked);
+        assert_eq!(
+            assess_checks(false, false, 0, &conflicts.values).state,
+            MergeState::Conflicts
+        );
+        assert_eq!(
+            assess_checks(false, true, 0, &[]).state,
+            MergeState::Blocked
+        );
         assert!(assess_checks(false, false, 0, &[]).is_ready());
-        assert_eq!(assess_checks(true, false, 0, &checks.values).state, MergeState::Draft);
+        assert_eq!(
+            assess_checks(true, false, 0, &checks.values).state,
+            MergeState::Draft
+        );
     }
 }

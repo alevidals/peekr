@@ -28,7 +28,11 @@ struct ActiveAccount {
 
 impl ActiveAccount {
     fn label(&self) -> String {
-        format!("{} ({})", self.account.workspace, self.account.kind.as_str())
+        format!(
+            "{} ({})",
+            self.account.workspace,
+            self.account.kind.as_str()
+        )
     }
 }
 
@@ -60,14 +64,17 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
             continue;
         }
 
-        let (results, mine_results) = tokio::join!(
-            join_all(active.iter().map(|a| async move {
-                (a, a.provider.fetch_review_prs(&a.account.repos).await)
-            })),
-            join_all(active.iter().map(|a| async move {
-                (a, a.provider.fetch_my_prs(&a.account.repos).await)
-            })),
-        );
+        let (results, mine_results) =
+            tokio::join!(
+                join_all(active.iter().map(|a| async move {
+                    (a, a.provider.fetch_review_prs(&a.account.repos).await)
+                })),
+                join_all(
+                    active.iter().map(|a| async move {
+                        (a, a.provider.fetch_my_prs(&a.account.repos).await)
+                    })
+                ),
+            );
 
         poll_once(&app, results, &mut seeded).await;
         poll_mine(&app, mine_results, &mut seeded_mine).await;
@@ -128,11 +135,16 @@ async fn poll_once(
 
     // Keep what we already knew about repos we couldn't reach, so a transient failure
     // neither drops their PRs nor makes them look new on the next successful poll.
-    new_prs.extend(current.iter().filter(|pr| {
-        failed.iter().any(|(account_id, repo)| {
-            *account_id == pr.account_id && repo.is_none_or(|r| r == pr.repo)
-        })
-    }).cloned());
+    new_prs.extend(
+        current
+            .iter()
+            .filter(|pr| {
+                failed.iter().any(|(account_id, repo)| {
+                    *account_id == pr.account_id && repo.is_none_or(|r| r == pr.repo)
+                })
+            })
+            .cloned(),
+    );
     new_prs.sort_by(|a, b| b.created_on.cmp(&a.created_on));
 
     let added: Vec<&PullRequest> = notifier::newly_added(&current, &new_prs)
@@ -144,7 +156,10 @@ async fn poll_once(
     }
     seeded.extend(succeeded.into_iter().map(str::to_string));
 
-    log::info!("[peekr] poll complete: {} PRs pending review", new_prs.len());
+    log::info!(
+        "[peekr] poll complete: {} PRs pending review",
+        new_prs.len()
+    );
     *current = new_prs.clone();
     drop(current);
 
@@ -187,7 +202,12 @@ async fn poll_mine(
 
     let state = app.state::<PrState>();
     let mut current = state.mine.lock().await;
-    fresh.extend(current.iter().filter(|pr| failed.contains(&pr.account_id.as_str())).cloned());
+    fresh.extend(
+        current
+            .iter()
+            .filter(|pr| failed.contains(&pr.account_id.as_str()))
+            .cloned(),
+    );
     fresh.sort_by(|a, b| b.updated_on.cmp(&a.updated_on));
 
     let events: Vec<_> = notifier::my_pr_events(&current, &fresh)

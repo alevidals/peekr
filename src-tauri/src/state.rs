@@ -54,7 +54,11 @@ impl ConfigStore {
             }
         }
         Ok(Self {
-            inner: RwLock::new(Snapshot { config, tokens, revision: 0 }),
+            inner: RwLock::new(Snapshot {
+                config,
+                tokens,
+                revision: 0,
+            }),
         })
     }
 

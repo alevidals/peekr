@@ -4,9 +4,15 @@ use tauri_plugin_opener::OpenerExt;
 use crate::domain::{CiStatus, PullRequest};
 
 /// PRs in `current` that were not in `previous`.
-pub fn newly_added<'a>(previous: &[PullRequest], current: &'a [PullRequest]) -> Vec<&'a PullRequest> {
+pub fn newly_added<'a>(
+    previous: &[PullRequest],
+    current: &'a [PullRequest],
+) -> Vec<&'a PullRequest> {
     let known: std::collections::HashSet<String> = previous.iter().map(PullRequest::key).collect();
-    current.iter().filter(|pr| !known.contains(&pr.key())).collect()
+    current
+        .iter()
+        .filter(|pr| !known.contains(&pr.key()))
+        .collect()
 }
 
 /// Something worth telling the user about one of their own PRs.
@@ -18,7 +24,10 @@ pub enum MyPrEvent {
 
 /// Transitions between two polls of the user's PRs. PRs that are new in `current` raise
 /// nothing: the first sighting of a PR is not a change.
-pub fn my_pr_events<'a>(previous: &[PullRequest], current: &'a [PullRequest]) -> Vec<(&'a PullRequest, MyPrEvent)> {
+pub fn my_pr_events<'a>(
+    previous: &[PullRequest],
+    current: &'a [PullRequest],
+) -> Vec<(&'a PullRequest, MyPrEvent)> {
     let before: std::collections::HashMap<String, &PullRequest> =
         previous.iter().map(|pr| (pr.key(), pr)).collect();
     let is_ready = |pr: &PullRequest| pr.merge.as_ref().is_some_and(|m| m.is_ready());
@@ -29,7 +38,9 @@ pub fn my_pr_events<'a>(previous: &[PullRequest], current: &'a [PullRequest]) ->
             let old = before.get(&pr.key())?;
             if is_ready(pr) && !is_ready(old) {
                 Some((pr, MyPrEvent::BecameReady))
-            } else if pr.ci_status == Some(CiStatus::Failed) && old.ci_status != Some(CiStatus::Failed) {
+            } else if pr.ci_status == Some(CiStatus::Failed)
+                && old.ci_status != Some(CiStatus::Failed)
+            {
                 Some((pr, MyPrEvent::ChecksFailed))
             } else {
                 None
@@ -81,10 +92,19 @@ fn show_and_wait_for_click(app: &AppHandle, title: &str, body: &str) -> bool {
     use mac_notification_sys::{Notification, NotificationResponse};
 
     // In dev the app has no bundle of its own, so the notification is attributed to Terminal.
-    let bundle = if tauri::is_dev() { "com.apple.Terminal" } else { app.config().identifier.as_str() };
+    let bundle = if tauri::is_dev() {
+        "com.apple.Terminal"
+    } else {
+        app.config().identifier.as_str()
+    };
     let _ = mac_notification_sys::set_application(bundle);
 
-    match Notification::new().title(title).message(body).wait_for_click(true).send() {
+    match Notification::new()
+        .title(title)
+        .message(body)
+        .wait_for_click(true)
+        .send()
+    {
         Ok(response) => matches!(response, NotificationResponse::Click),
         Err(e) => {
             log::error!("[notification] failed to send: {e}");
@@ -145,7 +165,11 @@ mod tests {
     }
 
     fn mine(number: u64, state: MergeState, ci: Option<CiStatus>) -> PullRequest {
-        PullRequest { merge: Some(MergeStatus::new(state, vec![])), ci_status: ci, ..pr("a", "r", number) }
+        PullRequest {
+            merge: Some(MergeStatus::new(state, vec![])),
+            ci_status: ci,
+            ..pr("a", "r", number)
+        }
     }
 
     #[test]
@@ -168,13 +192,20 @@ mod tests {
             .into_iter()
             .map(|(pr, e)| (pr.number, e))
             .collect();
-        assert_eq!(events, vec![(1, MyPrEvent::BecameReady), (2, MyPrEvent::ChecksFailed)]);
+        assert_eq!(
+            events,
+            vec![(1, MyPrEvent::BecameReady), (2, MyPrEvent::ChecksFailed)]
+        );
     }
 
     #[test]
     fn same_number_in_another_repo_is_a_new_pr() {
         let previous = vec![pr("a", "repo-a", 12)];
-        let current = vec![pr("a", "repo-a", 12), pr("a", "repo-b", 12), pr("b", "repo-a", 12)];
+        let current = vec![
+            pr("a", "repo-a", 12),
+            pr("a", "repo-b", 12),
+            pr("b", "repo-a", 12),
+        ];
         let added = newly_added(&previous, &current);
         assert_eq!(added.len(), 2);
         assert!(added.iter().all(|p| p.key() != "a/repo-a#12"));
