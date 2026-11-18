@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { hidePopover, openSettingsWindow } from "../api";
 import { EmptyState } from "../components/EmptyState";
-import { IconAlert, IconCircleCheck, IconPencil, IconRefresh, IconSearch, IconSettings, IconX } from "../components/Icons";
+import { IconAlert, IconCircleCheck, IconEye, IconEyeOff, IconRefresh, IconSearch, IconSettings, IconX } from "../components/Icons";
 import { PrList } from "../components/PrList";
 import { matchesTerms, parseQuery } from "../search";
 import { useConfig } from "../hooks/useConfig";
@@ -75,6 +75,9 @@ export function PopoverWindow() {
     return { draftCount: drafts, hasCi: ci, readyCount: ready };
   }, [prs, mine]);
 
+  // The eye shows whether drafts are currently visible; the title names the action.
+  const DraftIcon = hideDraft ? IconEyeOff : IconEye;
+
   // Replay the entrance animation without remounting the whole tree, and start at the top.
   // The webview mounts hidden, so the first focus also needs a restart to be visible. This
   // runs before paint to avoid a frame at full size followed by the animation's first frame.
@@ -117,7 +120,22 @@ export function PopoverWindow() {
 
   function renderContent() {
     if (config === undefined) return <EmptyState type="loading" />;
-    if (!isConfigured) return <EmptyState type="not-configured" />;
+    if (!isConfigured) {
+      return (
+        <EmptyState
+          type="not-configured"
+          action={
+            <button
+              type="button"
+              className="empty-state-action"
+              onClick={() => openSettingsWindow().catch(console.error)}
+            >
+              Open settings
+            </button>
+          }
+        />
+      );
+    }
     if (loading && prs.length === 0) return <EmptyState type="loading" />;
     if (visiblePrs.length === 0) {
       return <EmptyState type={prs.length > 0 ? "no-matches" : tab === "review" ? "no-prs" : "no-mine"} />;
@@ -164,7 +182,7 @@ export function PopoverWindow() {
               aria-pressed={hideDraft}
               onClick={() => setHideDraft((v) => !v)}
             >
-              <IconPencil size={16} />
+              <DraftIcon size={16} />
             </button>
           )}
           <button

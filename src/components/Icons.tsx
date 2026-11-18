@@ -189,3 +189,25 @@ export function IconPalette({ size = 16, className }: IconProps) {
     size, className
   );
 }
+
+export function IconEye({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </>,
+    size, className
+  );
+}
+
+export function IconEyeOff({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <path d="M3 3l18 18" />
+      <path d="M10.6 10.6a3 3 0 0 0 4.2 4.2" />
+      <path d="M9.9 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.1 2.8" />
+      <path d="M6.1 6.1A17 17 0 0 0 2 12s3.5 7 10 7a10.8 10.8 0 0 0 4.2-.8" />
+    </>,
+    size, className
+  );
+}

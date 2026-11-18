@@ -11,9 +11,14 @@
 - Theme picker with System, Light and Dark plus the themes shared with sftply: One Dark,
   Gruvbox Dark, Gruvbox Light, Nord, Dracula, Solarized Light, Tokyo Night and Catppuccin
   Mocha. Each one carries its full palette and pins its own light/dark scheme.
+- The first-run empty state now has an “Open settings” action, so connecting an account does
+  not depend on finding the gear in the header.
 
 ### Changed
 
+- The drafts filter uses an eye/eye-off icon and the draft row keeps full contrast; the
+  “Draft” badge is the only signal. Truncated titles, branches and repo names show the full
+  text on hover, and the header/refresh hit targets are 32px.
 - Settings is now a larger window (820 × 660) with a header, a vertical sidebar for
   Cuentas, General and Apariencia, a section header and a full-width footer. The theme
   picker sits in a three-column grid; density and text size follow below.

@@ -53,7 +53,7 @@ export function PrList({ prs }: Props) {
         <div key={group.key} className="pr-list-group">
           <div className="pr-list-group-header">
             <ProviderIcon kind={group.provider} size={12} />
-            <span className="pr-list-group-name">{group.repo}</span>
+            <span className="pr-list-group-name" title={group.repo}>{group.repo}</span>
             {showProvider && (
               <span className="pr-list-group-provider">{PROVIDERS[group.provider].label}</span>
             )}

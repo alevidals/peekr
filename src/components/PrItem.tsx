@@ -87,19 +87,19 @@ export const PrItem = memo(function PrItem({ pr, index = 0 }: Props) {
         )}
       </span>
       <span className="pr-item-body">
-        <span className="pr-item-title">
+        <span className="pr-item-title" title={pr.title}>
           {pr.draft && <span className="pr-item-draft-badge">Draft</span>}
           {pr.title}
         </span>
         <span className="pr-item-meta">
           <IconBranch size={12} className="pr-item-branch-icon" />
-          <span className="pr-item-branches">
+          <span className="pr-item-branches" title={`${pr.source_branch} → ${pr.destination_branch}`}>
             {pr.source_branch} → {pr.destination_branch}
           </span>
         </span>
         <MergePill pr={pr} />
         <span className="pr-item-footer">
-          <span className="pr-item-author">{pr.author_display_name}</span>
+          <span className="pr-item-author" title={pr.author_display_name}>{pr.author_display_name}</span>
           <span className="pr-item-footer-right">
             {pr.ci_status && <CiBadge status={pr.ci_status} />}
             {pr.approvals > 0 && (
