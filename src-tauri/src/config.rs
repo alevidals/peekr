@@ -6,7 +6,7 @@
 //! - v2: `{ version, polling_interval_secs, accounts: [...] }`, tokens keyed by account id.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -17,7 +17,7 @@ use crate::{
     secrets,
 };
 
-const CONFIG_VERSION: u32 = 2;
+pub const CONFIG_VERSION: u32 = 2;
 pub const DEFAULT_POLL_SECS: u64 = 120;
 pub const MIN_POLL_SECS: u64 = 30;
 pub const MAX_POLL_SECS: u64 = 3600;
@@ -155,15 +155,35 @@ pub fn save(app: &AppHandle, config: &AppConfig) -> AppResult<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
-    fs::write(&path, serde_json::to_string_pretty(config)?)?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
-    }
-
+    write_atomic(&path, &serde_json::to_string_pretty(config)?)?;
     log::info!("[config] saved to {path:?}");
+    Ok(())
+}
+
+/// Writes through a temporary file and renames it, so a crash never leaves a truncated config.
+fn write_atomic(path: &Path, contents: &str) -> AppResult<()> {
+    let tmp = path.with_extension("json.tmp");
+    {
+        // Create it with the final permissions so the file is never world-readable.
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&tmp)
+        };
+        #[cfg(not(unix))]
+        let file = fs::File::create(&tmp);
+
+        use std::io::Write;
+        let mut file = file?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+    }
+    fs::rename(&tmp, path)?;
     Ok(())
 }
 
@@ -174,15 +194,35 @@ pub fn load(app: &AppHandle) -> AppResult<AppConfig> {
         return Ok(AppConfig::default());
     }
 
-    let value: serde_json::Value = serde_json::from_str(&fs::read_to_string(&path)?)?;
+    let raw = fs::read_to_string(&path)?;
+    let value: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(value) => value,
+        Err(e) => return Ok(backup_unreadable(&path, &e)),
+    };
 
-    let mut config = if value.get("accounts").is_some() {
-        serde_json::from_value::<AppConfig>(value)?
-    } else {
-        migrate_v1(app, serde_json::from_value(value)?)?
+    let mut config = match parse_config(app, value) {
+        Ok(config) => config,
+        Err(AppError::Json(e)) => return Ok(backup_unreadable(&path, &e)),
+        Err(e) => return Err(e),
     };
     config.polling_interval_secs = clamp_interval(config.polling_interval_secs);
     Ok(config)
+}
+
+fn parse_config(app: &AppHandle, value: serde_json::Value) -> AppResult<AppConfig> {
+    if value.get("accounts").is_some() {
+        Ok(serde_json::from_value(value)?)
+    } else {
+        migrate_v1(app, serde_json::from_value(value)?)
+    }
+}
+
+/// Keeps a corrupt file next to the config instead of letting the next save overwrite it.
+fn backup_unreadable(path: &Path, error: &impl std::fmt::Display) -> AppConfig {
+    let backup = path.with_extension("json.bak");
+    let _ = fs::rename(path, &backup);
+    log::error!("[config] unreadable config, backed up to {backup:?}: {error}");
+    AppConfig::default()
 }
 
 #[derive(Deserialize, Default)]
@@ -202,29 +242,39 @@ fn migrate_v1(app: &AppHandle, old: ConfigV1) -> AppResult<AppConfig> {
         ..AppConfig::default()
     };
 
-    let had_legacy_keychain_entry;
     if old.workspace.is_empty() && old.repos.is_empty() {
-        had_legacy_keychain_entry = false;
-    } else {
-        let id = uuid::Uuid::new_v4().to_string();
-        let legacy_keychain = secrets::get_legacy_token()?;
-        had_legacy_keychain_entry = legacy_keychain.is_some();
-        let token = Some(old.token)
-            .filter(|t| !t.is_empty())
-            .or(legacy_keychain);
-        if let Some(token) = token {
-            secrets::set_token(&id, &token)?;
-        }
-        config.accounts.push(Account {
-            id,
-            kind: ProviderKind::Bitbucket,
-            workspace: old.workspace,
-            repos: clean_repos(old.repos),
-        });
+        save(app, &config)?;
+        return Ok(config);
     }
 
+    let id = uuid::Uuid::new_v4().to_string();
+    // A keychain that refuses access must not cost the user their accounts: migrate what we
+    // can and leave the problem in the log.
+    let legacy = match secrets::get_legacy_token() {
+        Ok(token) => token,
+        Err(e) => {
+            log::warn!("[keychain] could not read the legacy token: {e}");
+            None
+        }
+    };
+    let token = Some(old.token).filter(|t| !t.is_empty()).or(legacy);
+    let migrated = token.is_some_and(|token| match secrets::set_token(&id, &token) {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("[keychain] could not migrate the token: {e}");
+            false
+        }
+    });
+
+    config.accounts.push(Account {
+        id,
+        kind: ProviderKind::Bitbucket,
+        workspace: old.workspace,
+        repos: clean_repos(old.repos),
+    });
+
     save(app, &config)?;
-    if had_legacy_keychain_entry {
+    if migrated {
         secrets::delete_legacy_token();
     }
     Ok(config)
@@ -234,6 +284,10 @@ fn migrate_v1(app: &AppHandle, old: ConfigV1) -> AppResult<AppConfig> {
 pub fn validate_account(account: &Account) -> AppResult<()> {
     if account.workspace.trim().is_empty() {
         return Err(AppError::Config("Workspace is required".into()));
+    }
+    // The form enforces this too; the backend must not store an account it cannot poll.
+    if account.kind.requires_repos() && account.repos.is_empty() {
+        return Err(AppError::Config("Add at least one repository".into()));
     }
     Ok(())
 }
