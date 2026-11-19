@@ -1,11 +1,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
-use futures::future::join_all;
+use futures::{stream, StreamExt};
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use super::{FetchReport, ReviewProvider};
+use super::{FetchReport, ReviewProvider, MAX_CONCURRENCY};
 use crate::{
     domain::{CiStatus, MergeState, MergeStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
@@ -161,23 +161,26 @@ impl Bitbucket {
             url = page.next;
         }
 
-        Ok(join_all(raws.into_iter().map(|raw| async move {
-            let (ci_status, checks) = if role == Role::Author {
-                tokio::join!(
-                    self.ci_status(repo, raw.id),
-                    self.merge_checks(repo, raw.id)
-                )
-            } else {
-                (self.ci_status(repo, raw.id).await, None)
-            };
-            let merge =
-                (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
-            let mut pr = raw.into_pr(&self.account_id, repo);
-            pr.ci_status = ci_status;
-            pr.merge = merge;
-            pr
-        }))
-        .await)
+        Ok(stream::iter(raws)
+            .map(|raw| async move {
+                let (ci_status, checks) = if role == Role::Author {
+                    tokio::join!(
+                        self.ci_status(repo, raw.id),
+                        self.merge_checks(repo, raw.id)
+                    )
+                } else {
+                    (self.ci_status(repo, raw.id).await, None)
+                };
+                let merge =
+                    (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
+                let mut pr = raw.into_pr(&self.account_id, repo);
+                pr.ci_status = ci_status;
+                pr.merge = merge;
+                pr
+            })
+            .buffered(MAX_CONCURRENCY)
+            .collect()
+            .await)
     }
 }
 
@@ -222,10 +225,13 @@ impl Bitbucket {
     async fn fetch_all(&self, repos: &[String], role: Role) -> AppResult<FetchReport> {
         let user_id = self.user_id().await?;
 
-        let results =
-            join_all(repos.iter().map(|repo| async move {
-                (repo.clone(), self.fetch_repo(repo, user_id, role).await)
-            }))
+        let results = stream::iter(repos.iter().cloned())
+            .map(|repo| async move {
+                let fetched = self.fetch_repo(&repo, user_id, role).await;
+                (repo, fetched)
+            })
+            .buffered(MAX_CONCURRENCY)
+            .collect::<Vec<_>>()
             .await;
 
         let mut prs = Vec::new();

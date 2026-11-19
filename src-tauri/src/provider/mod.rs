@@ -18,6 +18,10 @@ use crate::{
     error::{AppError, AppResult},
 };
 
+/// Cap on simultaneous requests to one service. Providers fan out over repositories and PRs,
+/// and an unbounded burst is the fastest way to be throttled.
+pub(crate) const MAX_CONCURRENCY: usize = 8;
+
 /// Outcome of polling one account. Repos that failed are reported separately so that one bad
 /// repo neither hides the others nor makes its previously known PRs look "closed".
 pub struct FetchReport {
