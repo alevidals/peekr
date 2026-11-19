@@ -342,6 +342,7 @@ struct RawPullRequest {
     destination: SourceDest,
     created_on: String,
     updated_on: String,
+    /// Live comments, including inline code-review ones; deleted comments are excluded.
     comment_count: Option<u32>,
     links: PrLinks,
     participants: Option<Vec<Participant>>,
