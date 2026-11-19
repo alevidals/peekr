@@ -124,7 +124,15 @@ pub async fn save_config(
         secrets::set_token(id, token)?;
     }
 
-    config::save(&app, &new_config)?;
+    if let Err(e) = config::save(&app, &new_config) {
+        // The account never reached the disk: do not leave its token behind.
+        for (id, _) in &tokens_to_write {
+            if !previous.config.accounts.iter().any(|a| &a.id == id) {
+                secrets::delete_token(id);
+            }
+        }
+        return Err(e);
+    }
     let removed: Vec<String> = previous
         .config
         .accounts
