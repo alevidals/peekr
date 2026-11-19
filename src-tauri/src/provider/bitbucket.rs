@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use futures::{stream, StreamExt};
 use serde::Deserialize;
-use tokio::sync::OnceCell;
+use tokio::sync::{OnceCell, Semaphore};
 
 use super::{FetchReport, ReviewProvider, MAX_CONCURRENCY};
 use crate::{
@@ -28,6 +28,9 @@ pub struct Bitbucket {
     /// Server-side `reviewers.account_id` filtering. Flipped off for good the first time
     /// Bitbucket rejects it (depends on the token type), falling back to client-side filtering.
     use_q_filter: AtomicBool,
+    /// Hard cap on requests in flight for this account, across every repo and PR. Buffering
+    /// alone would allow repositories × PRs at once.
+    permits: Semaphore,
 }
 
 impl Bitbucket {
@@ -44,21 +47,28 @@ impl Bitbucket {
             token,
             user_id: OnceCell::new(),
             use_q_filter: AtomicBool::new(true),
+            permits: Semaphore::new(MAX_CONCURRENCY),
         }
+    }
+
+    /// Sends a request, waiting for a free slot first.
+    async fn send(&self, request: reqwest::RequestBuilder) -> AppResult<reqwest::Response> {
+        let _permit = self
+            .permits
+            .acquire()
+            .await
+            .expect("the provider semaphore is never closed");
+        Ok(request.send().await?)
     }
 
     async fn user_id(&self) -> AppResult<&str> {
         self.user_id
             .get_or_try_init(|| async {
-                let user: BitbucketUser = self
+                let request = self
                     .client
                     .get(format!("{API}/user"))
-                    .bearer_auth(&self.token)
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .json()
-                    .await?;
+                    .bearer_auth(&self.token);
+                let user: BitbucketUser = http::json(self.send(request).await?).await?;
                 user.account_id.ok_or_else(|| {
                     AppError::Provider("Missing account_id in /user response".into())
                 })
@@ -68,7 +78,8 @@ impl Bitbucket {
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> AppResult<T> {
-        http::json(self.client.get(url).bearer_auth(&self.token).send().await?).await
+        let request = self.client.get(url).bearer_auth(&self.token);
+        http::json(self.send(request).await?).await
     }
 
     /// Pipeline/build status of the PR's head commit. Best effort: a token without the
@@ -125,12 +136,8 @@ impl Bitbucket {
 
         while let Some(next_url) = url {
             log::debug!("GET {next_url}");
-            let response = self
-                .client
-                .get(&next_url)
-                .bearer_auth(&self.token)
-                .send()
-                .await?;
+            let request = self.client.get(&next_url).bearer_auth(&self.token);
+            let response = self.send(request).await?;
             let status = response.status();
             log::debug!("  → HTTP {status}");
 
