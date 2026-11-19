@@ -46,17 +46,17 @@ pub fn get_config(store: State<'_, ConfigStore>) -> ConfigResponse {
     ConfigResponse {
         polling_interval_secs: snapshot.config.polling_interval_secs,
         theme: snapshot.config.theme,
-        appearance: snapshot.config.appearance,
+        appearance: snapshot.config.appearance.clone(),
         accounts: snapshot
             .config
             .accounts
-            .into_iter()
+            .iter()
             .map(|a| AccountResponse {
                 has_token: snapshot.tokens.contains_key(&a.id),
-                id: a.id,
+                id: a.id.clone(),
                 kind: a.kind,
-                workspace: a.workspace,
-                repos: a.repos,
+                workspace: a.workspace.clone(),
+                repos: a.repos.clone(),
             })
             .collect(),
     }

@@ -22,7 +22,7 @@ pub const DEFAULT_POLL_SECS: u64 = 120;
 pub const MIN_POLL_SECS: u64 = 30;
 pub const MAX_POLL_SECS: u64 = 3600;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Account {
     pub id: String,
     pub kind: ProviderKind,
@@ -107,7 +107,7 @@ impl Appearance {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub version: u32,
     pub polling_interval_secs: u64,

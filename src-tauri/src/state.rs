@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use tauri::AppHandle;
 use tokio::sync::{watch, Mutex};
@@ -26,18 +26,19 @@ pub struct PollTrigger {
 
 /// In-memory copy of the config and tokens, so neither the disk nor the keychain
 /// are touched on every poll.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Snapshot {
     pub config: AppConfig,
     /// account id → token
     pub tokens: HashMap<String, String>,
-    /// Bumped on every change; lets the poller know when to rebuild its providers.
+    /// Bumped when the config or the tokens change; lets the poller rebuild its providers.
     pub revision: u64,
 }
 
 #[derive(Default)]
 pub struct ConfigStore {
-    inner: RwLock<Snapshot>,
+    /// Shared, so reading a snapshot does not copy the config and every token.
+    inner: RwLock<Arc<Snapshot>>,
 }
 
 impl ConfigStore {
@@ -54,22 +55,30 @@ impl ConfigStore {
             }
         }
         Ok(Self {
-            inner: RwLock::new(Snapshot {
+            inner: RwLock::new(Arc::new(Snapshot {
                 config,
                 tokens,
                 revision: 0,
-            }),
+            })),
         })
     }
 
-    pub fn snapshot(&self) -> Snapshot {
+    pub fn snapshot(&self) -> Arc<Snapshot> {
         self.inner.read().unwrap().clone()
     }
 
     pub fn replace(&self, config: AppConfig, tokens: HashMap<String, String>) {
         let mut inner = self.inner.write().unwrap();
-        inner.revision += 1;
-        inner.config = config;
-        inner.tokens = tokens;
+        // Saving only the theme must not throw away the providers' cached logins.
+        let revision = if inner.config == config && inner.tokens == tokens {
+            inner.revision
+        } else {
+            inner.revision + 1
+        };
+        *inner = Arc::new(Snapshot {
+            config,
+            tokens,
+            revision,
+        });
     }
 }
