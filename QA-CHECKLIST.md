@@ -139,6 +139,10 @@ result.
       restart.
 - [ ] **Open logs** reveals the log directory and the current log is readable.
 - [ ] The log contains no tokens and has a bounded size.
+- [ ] **Check for updates** with the current version says it is up to date.
+- [ ] With an older build than the latest release, it reports the newer version
+      and the **Release page** button opens that release.
+- [ ] A network failure shows an error and leaves the button enabled for retry.
 - [ ] Theme, palette, accent, density and text size save.
 - [ ] Tall forms scroll inside the window without pushing the footer off screen.
 - [ ] Validation errors are visible and announced.

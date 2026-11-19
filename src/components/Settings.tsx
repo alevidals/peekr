@@ -22,6 +22,7 @@ import {
 import { IconAccount, IconPalette, IconPlus, IconSettings } from "./Icons";
 import { AccountForm } from "./AccountForm";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { UpdateCheck } from "./UpdateCheck";
 import "./Settings.css";
 
 interface Props {
@@ -418,6 +419,7 @@ export function Settings({ onSaved, onClose }: Props) {
                     Open logs
                   </button>
                 </div>
+                <UpdateCheck />
               </div>
             )}
 

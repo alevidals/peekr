@@ -1,7 +1,7 @@
 // Single place that knows the names of the Tauri commands and events.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AccountInput, Appearance, Config, ProviderKind, PullRequest, Theme } from "./types";
+import type { AccountInput, Appearance, Config, ProviderKind, PullRequest, Theme, UpdateStatus } from "./types";
 
 export const getConfig = () => invoke<Config>("get_config");
 
@@ -22,6 +22,7 @@ export const openSettingsWindow = () => invoke<void>("open_settings_window");
 export const hideSettingsWindow = () => invoke<void>("hide_settings_window");
 export const hidePopover = () => invoke<void>("hide_popover");
 export const openLogs = () => invoke<void>("open_logs");
+export const checkForUpdates = () => invoke<UpdateStatus>("check_for_updates");
 
 export const onPrsUpdated = (cb: (prs: PullRequest[]) => void): Promise<UnlistenFn> =>
   listen<PullRequest[]>("prs-updated", (e) => cb(e.payload));

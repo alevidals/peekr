@@ -48,6 +48,7 @@ and left open.
 - [x] ESLint, typecheck, Rust tests and the production build gate
 - [x] CI, release and security workflows plus the version-consistency script
 - [x] Single-instance guard and a rotating application log with an Open logs action
+- [x] Manual Check for updates against the latest GitHub release
 - [x] Vitest + Testing Library for search, drafts, themes and the confirmation dialog
 - [x] CI on Ubuntu/macOS/Windows, security audits and a published `v0.1.0` release
 - [x] Architecture, user, dependency, release, roadmap and ADR docs
@@ -336,6 +337,28 @@ and left open.
 - Cross-platform visual QA on real Windows and Linux machines.
 - Expand frontend tests and decide on IPC codegen.
 
+### 2026-11-19 — Session 11: manual update check
+
+**Done**
+
+- Added `update.rs`: compares the running version with the latest published
+  GitHub release using the shared HTTP client. One request, no background polling.
+  A private repository falls back to the first configured GitHub token in Rust.
+- Added `check_for_updates` and **Settings → General → Check for updates**. The
+  result is display-only; the release page opens in the browser.
+- Supports `v` prefixes, numeric ordering and pre-release ordering; unit tests
+  cover newer, current, equal and draft responses.
+- Added frontend tests for the update-available and up-to-date states.
+
+**Verified**
+
+- `cargo test update::tests` (5 tests).
+- `bun run test` (14 tests) and `bun run typecheck`.
+
+**Next**
+
+- Cross-platform visual QA on real Windows and Linux machines.
+
 ---
 
 ## Verification
@@ -359,11 +382,11 @@ bun run rust:test
 | --------------------- | --------------------------------------------------- |
 | `bun run typecheck`   | pass                                                |
 | `bun run lint`        | pass                                                |
-| `bun run test`        | 12 tests pass in 4 files                            |
+| `bun run test`        | 14 tests pass in 5 files                            |
 | `bun run build`       | pass                                                |
 | `cargo fmt --check`   | pass                                                |
 | `cargo clippy`        | pass with `-D warnings`                             |
-| `cargo test`          | 40 tests pass                                       |
+| `cargo test`          | 46 tests pass                                       |
 
 No frontend test runner yet. Manual acceptance steps are in
 [QA-CHECKLIST.md](../QA-CHECKLIST.md).

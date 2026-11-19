@@ -705,6 +705,46 @@
   opacity: 0.8;
 }
 
+/* ───────────── Update check ───────────── */
+.update-check {
+  padding-bottom: 10px;
+}
+
+.update-check .row {
+  padding-bottom: 10px;
+}
+
+.update-check-message {
+  margin: 0 14px 10px;
+}
+
+.update-check-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 14px 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+}
+
+.update-check-result code {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.update-check-latest {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 14px 10px;
+  font-size: 12px;
+  color: var(--success-ink);
+}
+
 /* ───────────── Confirmation dialog ───────────── */
 .confirm-backdrop {
   position: fixed;

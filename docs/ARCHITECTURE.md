@@ -122,6 +122,7 @@ src-tauri/src/
   notifier.rs                # new-PR diff, My PR transitions, native notifications
   poller.rs                  # background loop, backoff, merge/dedupe, events
   popover.rs                 # show/hide, positioning, macOS NSPanel and Space observer
+  update.rs                  # manual GitHub release check and version comparison
   provider/
     mod.rs                   # ReviewProvider trait, FetchReport, concurrency cap
     bitbucket.rs             # Bitbucket Cloud REST adapter
@@ -394,6 +395,7 @@ providers and resolves the token owner again.
 | Windows  | `hide_settings_window`| Hide Settings and return to accessory mode                     |
 | Windows  | `hide_popover`        | Run the animated hide                                          |
 | App      | `open_logs`           | Reveal the application log directory in the file manager       |
+| App      | `check_for_updates`   | Compare the running version with the latest GitHub release     |
 
 ### Events
 
@@ -539,6 +541,7 @@ accounts lose their tokens only after the new config has been written.
 | Dependency compromise                    | Committed lockfiles; pinned direct versions; weekly audits in CI                                    |
 | Malicious response body                  | JSON decoding with typed structs; error bodies capped; no HTML rendered as HTML                     |
 | Notification spoofing or wrong target    | Notifications are built from typed PR data; the click target is the PR's `html_url`                 |
+| Update check tampering                   | Fixed GitHub API URL and typed response; no download or install path exists. A private repo uses the configured GitHub token in Rust only |
 
 ### Tauri hardening
 
@@ -623,6 +626,7 @@ UX mapping:
   - `notifier`: transition detection and provider vocabulary.
   - `popover`: hide-generation and spurious-blur logic.
   - `http`: retry and body snippet trimming.
+  - `update`: version comparison, release parsing and updater edge cases.
 - Run with `cargo test --manifest-path src-tauri/Cargo.toml`.
 - `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are part of
   `bun run rust:lint`.
@@ -651,6 +655,9 @@ window, notifications or the real menu bar.
 - **macOS-first native behaviour.** The non-activating panel and layer-based
   badge are macOS-specific. Windows and Linux use the cross-platform window and
   icon paths, which receive less runtime testing.
+- **No automatic updates.** Settings → General → Check for updates performs one
+  request to GitHub and opens the release page; it never downloads or installs
+  anything. An in-app updater stays deferred until signing exists.
 - **No Developer ID signing yet.** The release workflow uses an ad-hoc macOS
   signature and publishes checksums; Apple notarization and Windows signing are
   the future path documented in `RELEASE.md`.

@@ -10,6 +10,7 @@ mod provider;
 mod secrets;
 mod state;
 mod tray;
+mod update;
 
 use tauri::Manager;
 use tokio::sync::watch;
@@ -95,6 +96,7 @@ pub fn run() {
             commands::hide_settings_window,
             commands::hide_popover,
             commands::open_logs,
+            commands::check_for_updates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

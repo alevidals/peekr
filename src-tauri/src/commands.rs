@@ -223,6 +223,25 @@ pub fn open_logs(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+/// Checks the public GitHub releases page. Manual only; nothing is downloaded.
+#[tauri::command]
+pub async fn check_for_updates(
+    client: State<'_, reqwest::Client>,
+    store: State<'_, ConfigStore>,
+) -> AppResult<crate::update::UpdateStatus> {
+    let snapshot = store.snapshot();
+    // A private repository needs authentication. Use the first GitHub account's
+    // token when one is configured; the public API path still works without it.
+    let token = snapshot
+        .config
+        .accounts
+        .iter()
+        .find(|account| account.kind == ProviderKind::Github)
+        .and_then(|account| snapshot.tokens.get(&account.id))
+        .cloned();
+    crate::update::check(client.inner(), token.as_deref()).await
+}
+
 #[tauri::command]
 pub fn hide_settings_window(app: AppHandle) -> AppResult<()> {
     if let Some(win) = app.get_webview_window("settings") {

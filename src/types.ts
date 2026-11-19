@@ -79,6 +79,15 @@ export interface Config {
   accounts: AccountConfig[];
 }
 
+/** Result of the manual update check. */
+export interface UpdateStatus {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  /** Release page for the newest published version. */
+  release_url: string;
+}
+
 /** What the settings window sends back for each account. */
 export interface AccountInput {
   id?: string;

@@ -195,6 +195,11 @@ it instead. Cancelling the confirmation keeps the account untouched.
 - **Polling interval**: 30 to 3600 seconds. The default is 120 seconds.
 - **Launch at login**: registers peekr with the OS autostart mechanism.
 - **Open logs**: reveals the application log directory in the file manager.
+- **Check for updates**: asks GitHub for the latest published release and compares
+  it with the running version. It only shows the result and opens the release
+  page in the browser; nothing is downloaded or installed automatically. On a
+  private repository it reuses the first configured GitHub account's token (in
+  Rust only) so the release can be read.
 
 If several polls fail in a row, peekr backs off up to three doublings of the
 configured interval, so a service that is down or throttling is not hammered.
@@ -262,6 +267,13 @@ contain tokens.
 
 If a notification does not appear, check the OS permission for peekr (or Terminal
 in development) and the log for a `[notification] failed` line.
+
+### The update check says the app is current
+
+The check uses GitHub's `/releases/latest` endpoint. That endpoint ignores draft
+releases and pre-releases, so a release marked as a pre-release does not count as
+an update. A network or rate-limit error is shown in Settings instead of being
+treated as “up to date”.
 
 ### The popover does not open over a full-screen app
 

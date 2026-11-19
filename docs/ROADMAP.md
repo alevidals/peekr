@@ -143,7 +143,7 @@ Order is deliberate. Each item ships only after the previous one is stable.
 | Reliability  | Soak test with the app running for days; sleep/wake, network changes and token expiry          |
 | Notifications| Deduplication proven across search flicker, account reload and app restart                      |
 | Packaging    | Signed/notarized macOS build when a certificate exists; Windows signing decision documented     |
-| Updates      | Checksum verification and a manual "check for updates" link; no silent installer                |
+| Updates      | Implemented: manual "Check for updates" and checksums; no silent installer or auto-download      |
 | Docs         | User guide, architecture, ADRs and release notes reviewed against the shipped app               |
 | Support      | Issue templates, a reproducible bug-report checklist and a security policy                     |
 

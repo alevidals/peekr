@@ -146,7 +146,7 @@ image and `CALayer` overlays do the work.
 | `objc` 0.2                   | Replaced | Unmaintained; `objc2`/`tauri-nspanel` are the maintained path.                                              |
 | `native-tls`                 | Rejected | rustls gives a consistent cross-platform TLS story and avoids an OpenSSL dependency.                        |
 | `openssl` / system binaries  | Rejected | No mandatory system binaries; portable builds and predictable behaviour.                                    |
-| Custom updater               | Deferred | No signed artifacts yet. Shipping an updater before signing would weaken the security story.                |
+| Custom updater               | Deferred | Manual GitHub release check exists; auto-download/install waits for signing and a verified update path. |
 | Analytics / crash reporting  | Rejected | No telemetry, no remote config, no peekr account.                                                           |
 
 ---
