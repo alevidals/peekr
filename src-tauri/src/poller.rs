@@ -37,11 +37,7 @@ impl ActiveAccount {
 }
 
 pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .expect("Failed to build HTTP client");
-
+    let client = app.state::<reqwest::Client>().inner().clone();
     let mut built_revision = None;
     let mut active: Vec<ActiveAccount> = Vec::new();
     // Accounts that completed a poll before; only their new PRs trigger notifications, so

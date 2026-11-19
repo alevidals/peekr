@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod domain;
 mod error;
+mod http;
 mod notifier;
 mod poller;
 mod popover;
@@ -45,6 +46,9 @@ pub fn run() {
             });
             app.manage(store);
             app.manage(PrState::default());
+            // Shared by the poller and the settings validation so every call has the same
+            // timeout and connection pool.
+            app.manage(http::client());
 
             popover::setup(app);
             tray::create_tray(app)?;

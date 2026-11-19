@@ -20,6 +20,7 @@ use super::{FetchReport, ReviewProvider};
 use crate::{
     domain::{CiStatus, MergeState, MergeStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
+    http,
 };
 
 const API: &str = "https://api.github.com";
@@ -55,20 +56,13 @@ impl Github {
             .bearer_auth(&self.token)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
-            // GitHub rejects requests without a User-Agent.
-            .header("User-Agent", "peekr")
     }
 
     async fn login(&self) -> AppResult<&str> {
         self.login
             .get_or_try_init(|| async {
-                let user: GithubUser = self
-                    .get(&format!("{API}/user"))
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .json()
-                    .await?;
+                let user: GithubUser =
+                    http::json(self.get(&format!("{API}/user")).send().await?).await?;
                 Ok::<_, AppError>(user.login)
             })
             .await
@@ -78,18 +72,17 @@ impl Github {
     async fn search_review_requests(&self) -> AppResult<Vec<SearchItem>> {
         let mut items = Vec::new();
         for page in 1..=MAX_PAGES {
-            let response: SearchResponse = self
-                .get(&format!("{API}/search/issues"))
-                .query(&[
-                    ("q", "is:pr is:open review-requested:@me"),
-                    ("per_page", &PER_PAGE.to_string()),
-                    ("page", &page.to_string()),
-                ])
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            let response: SearchResponse = http::json(
+                self.get(&format!("{API}/search/issues"))
+                    .query(&[
+                        ("q", "is:pr is:open review-requested:@me"),
+                        ("per_page", &PER_PAGE.to_string()),
+                        ("page", &page.to_string()),
+                    ])
+                    .send()
+                    .await?,
+            )
+            .await?;
             let received = response.items.len();
             items.extend(response.items);
             if received < PER_PAGE {
@@ -100,13 +93,7 @@ impl Github {
     }
 
     async fn fetch_pull(&self, pull_url: &str, repo: &str) -> AppResult<PullRequest> {
-        let raw: RawPull = self
-            .get(pull_url)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let raw: RawPull = http::json(self.get(pull_url).send().await?).await?;
         let (approvals, ci_status) = tokio::join!(
             self.approvals(repo, raw.number),
             self.ci_status(repo, raw.head.sha.as_deref())
@@ -119,15 +106,7 @@ impl Github {
 
     /// GET + JSON that maps any failure to `None` (logged), for the optional extras.
     async fn get_optional<T: serde::de::DeserializeOwned>(&self, url: String) -> Option<T> {
-        let result: Result<T, reqwest::Error> = async {
-            self.get(&url)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await
-        }
-        .await;
+        let result = async { http::json(self.get(&url).send().await?).await }.await;
         result
             .map_err(|e| log::debug!("Optional GitHub call {url} failed: {e}"))
             .ok()

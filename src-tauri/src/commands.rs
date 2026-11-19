@@ -149,6 +149,7 @@ pub async fn save_config(
 /// already stored for `account_id` is checked instead.
 #[tauri::command]
 pub async fn validate_credentials(
+    client: State<'_, reqwest::Client>,
     store: State<'_, ConfigStore>,
     kind: ProviderKind,
     account_id: Option<String>,
@@ -165,7 +166,7 @@ pub async fn validate_credentials(
         workspace: String::new(),
         repos: Vec::new(),
     };
-    provider::build(reqwest::Client::new(), &account, &token)
+    provider::build(client.inner().clone(), &account, &token)
         .validate()
         .await
 }

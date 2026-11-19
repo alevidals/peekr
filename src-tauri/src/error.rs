@@ -10,6 +10,12 @@ pub enum AppError {
     Provider(String),
     #[error("Network error: {0}")]
     Http(#[from] reqwest::Error),
+    #[error("HTTP {status} for {url}: {message}")]
+    HttpStatus {
+        status: u16,
+        url: String,
+        message: String,
+    },
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

@@ -9,6 +9,7 @@ use super::{FetchReport, ReviewProvider};
 use crate::{
     domain::{CiStatus, MergeState, MergeStatus, ProviderKind, PullRequest},
     error::{AppError, AppResult},
+    http,
 };
 
 const API: &str = "https://api.bitbucket.org/2.0";
@@ -66,18 +67,8 @@ impl Bitbucket {
             .map(String::as_str)
     }
 
-    async fn get_json<T: serde::de::DeserializeOwned>(
-        &self,
-        url: &str,
-    ) -> Result<T, reqwest::Error> {
-        self.client
-            .get(url)
-            .bearer_auth(&self.token)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await
+    async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> AppResult<T> {
+        http::json(self.client.get(url).bearer_auth(&self.token).send().await?).await
     }
 
     /// Pipeline/build status of the PR's head commit. Best effort: a token without the
@@ -153,7 +144,7 @@ impl Bitbucket {
                 continue;
             }
 
-            let page: PagedResponse<RawPullRequest> = response.error_for_status()?.json().await?;
+            let page: PagedResponse<RawPullRequest> = http::json(response).await?;
 
             for raw in page.values {
                 let wanted = match role {
