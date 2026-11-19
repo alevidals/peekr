@@ -1,17 +1,15 @@
-//! GitHub via the REST API.
+//! GitHub via the GraphQL API.
 //!
-//! One search (`review-requested:@me`) lists every open PR waiting on the user — including
-//! requests made to teams they belong to, and dropping PRs once a review has been submitted.
-//! Search results lack branches and full comment counts, so each PR is then fetched once,
-//! together with its reviews (approvals) and its checks (Actions check-runs + commit statuses).
-//! The reviews/checks calls are best effort: without the token permission they just yield no data.
+//! One search per side lists the PRs: `review-requested:@me` for the ones waiting on the user
+//! (including requests made to teams they belong to) and `author:@me` for the user's own. A
+//! `PullRequest` node already carries branches, the comment count, the reviews and the check
+//! rollup, so no per-PR request is needed.
 //!
-//! The user's own PRs come from one GraphQL query instead: GitHub itself computes whether
-//! each PR is mergeable (`mergeStateStatus`, which accounts for the *required* checks and
-//! reviews of the branch protection), so no rule has to be reimplemented here.
+//! For the user's own PRs GitHub computes the verdict itself (`mergeStateStatus`, which accounts
+//! for the *required* checks and reviews of the branch protection), so no rule is reimplemented
+//! here.
 
 use async_trait::async_trait;
-use futures::{stream, StreamExt};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -24,10 +22,9 @@ use crate::{
 };
 
 const API: &str = "https://api.github.com";
-const PER_PAGE: usize = 100;
 /// Search never returns more than 1000 results.
 const MAX_PAGES: usize = 10;
-const DETAIL_CONCURRENCY: usize = 8;
+const REVIEW_SCOPE: &str = "is:pr is:open review-requested:@me";
 
 pub struct Github {
     client: reqwest::Client,
@@ -58,6 +55,14 @@ impl Github {
             .header("X-GitHub-Api-Version", "2022-11-28")
     }
 
+    fn post_graphql(&self, body: &serde_json::Value) -> RequestBuilder {
+        self.client
+            .post(format!("{API}/graphql"))
+            .bearer_auth(&self.token)
+            .header("Accept", "application/vnd.github+json")
+            .json(body)
+    }
+
     async fn login(&self) -> AppResult<&str> {
         self.login
             .get_or_try_init(|| async {
@@ -69,70 +74,44 @@ impl Github {
             .map(String::as_str)
     }
 
-    async fn search_review_requests(&self) -> AppResult<Vec<SearchItem>> {
-        let mut items = Vec::new();
-        for page in 1..=MAX_PAGES {
-            let response: SearchResponse = http::json(
-                self.get(&format!("{API}/search/issues"))
-                    .query(&[
-                        ("q", "is:pr is:open review-requested:@me"),
-                        ("per_page", &PER_PAGE.to_string()),
-                        ("page", &page.to_string()),
-                    ])
-                    .send()
-                    .await?,
-            )
-            .await?;
-            let received = response.items.len();
-            items.extend(response.items);
-            if received < PER_PAGE {
-                break;
+    /// Runs a GitHub search page by page and returns the PR nodes it contains.
+    async fn search(&self, query: &str) -> AppResult<Vec<GqlPull>> {
+        let mut nodes = Vec::new();
+        let mut cursor: Option<String> = None;
+
+        for _ in 0..MAX_PAGES {
+            let request = self.post_graphql(&serde_json::json!({
+                "query": SEARCH_QUERY,
+                "variables": { "q": query, "cursor": cursor },
+            }));
+            let data = graphql_data(http::json(request.send().await?).await?)?;
+            let GraphqlSearch {
+                page_info,
+                nodes: page,
+            } = data.search;
+            nodes.extend(page.into_iter().flatten());
+
+            match page_info.end_cursor {
+                Some(next) if page_info.has_next_page => cursor = Some(next),
+                _ => break,
             }
         }
-        Ok(items)
+
+        Ok(nodes)
     }
 
-    async fn fetch_pull(&self, pull_url: &str, repo: &str) -> AppResult<PullRequest> {
-        let raw: RawPull = http::json(self.get(pull_url).send().await?).await?;
-        let (approvals, ci_status) = tokio::join!(
-            self.approvals(repo, raw.number),
-            self.ci_status(repo, raw.head.sha.as_deref())
-        );
-        let mut pr = raw.into_pr(&self.account_id, repo);
-        pr.approvals = approvals;
-        pr.ci_status = ci_status;
-        Ok(pr)
-    }
-
-    /// GET + JSON that maps any failure to `None` (logged), for the optional extras.
-    async fn get_optional<T: serde::de::DeserializeOwned>(&self, url: String) -> Option<T> {
-        let result = async { http::json(self.get(&url).send().await?).await }.await;
-        result
-            .map_err(|e| log::debug!("Optional GitHub call {url} failed: {e}"))
-            .ok()
-    }
-
-    async fn approvals(&self, repo: &str, number: u64) -> u32 {
-        let url = format!("{API}/repos/{repo}/pulls/{number}/reviews?per_page=100");
-        self.get_optional::<Vec<RawReview>>(url)
-            .await
-            .map_or(0, |reviews| count_approvals(&reviews))
-    }
-
-    async fn ci_status(&self, repo: &str, sha: Option<&str>) -> Option<CiStatus> {
-        let sha = sha?;
-        let (runs, status) = tokio::join!(
-            self.get_optional::<CheckRuns>(format!(
-                "{API}/repos/{repo}/commits/{sha}/check-runs?per_page=100"
-            )),
-            self.get_optional::<CombinedStatus>(format!("{API}/repos/{repo}/commits/{sha}/status")),
-        );
-        let from_runs = runs
+    /// Keeps the nodes that belong to this account and maps them to the domain type.
+    fn to_prs(
+        &self,
+        nodes: Vec<GqlPull>,
+        repos: &[String],
+        include_merge: bool,
+    ) -> Vec<PullRequest> {
+        nodes
             .into_iter()
-            .flat_map(|r| r.check_runs)
-            .map(|r| r.ci_status());
-        let from_status = status.and_then(|s| s.ci_status());
-        CiStatus::combine(from_runs.chain(from_status))
+            .filter(|node| in_scope(&node.repository.name_with_owner, &self.owner, repos))
+            .map(|node| node.into_pr(&self.account_id, include_merge))
+            .collect()
     }
 }
 
@@ -144,91 +123,23 @@ impl ReviewProvider for Github {
 
     async fn fetch_my_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
         let login = self.login().await?;
-        let response = self
-            .client
-            .post(format!("{API}/graphql"))
-            .bearer_auth(&self.token)
-            .header("User-Agent", "peekr")
-            .json(&serde_json::json!({
-                "query": MY_PRS_QUERY,
-                "variables": { "q": format!("is:pr is:open archived:false author:{login}") },
-            }))
-            .send()
-            .await?
-            .error_for_status()?
-            .json::<GraphqlResponse>()
+        let nodes = self
+            .search(&format!("is:pr is:open archived:false author:{login}"))
             .await?;
-
-        if let Some(error) = response.errors.as_ref().and_then(|e| e.first()) {
-            // Partial data is still usable, but with no data at all the error is the story.
-            if response.data.is_none() {
-                return Err(AppError::Provider(format!(
-                    "GitHub GraphQL: {}",
-                    error.message
-                )));
-            }
-            log::warn!("GitHub GraphQL returned errors: {}", error.message);
-        }
-
-        let prs = response
-            .data
-            .into_iter()
-            .flat_map(|d| d.search.nodes)
-            .flatten()
-            .filter(|node| in_scope(&node.repository.name_with_owner, &self.owner, repos))
-            .map(|node| node.into_pr(&self.account_id))
-            .collect();
         Ok(FetchReport {
-            prs,
+            prs: self.to_prs(nodes, repos, true),
             failed_repos: Vec::new(),
         })
     }
 
     async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
-        let items = self.search_review_requests().await?;
-
-        // The search spans every owner the token can see; keep only this account's scope.
-        let in_scope: Vec<(String, String)> = items
-            .into_iter()
-            .filter_map(|item| {
-                let repo = repo_full_name(&item.repository_url)?.to_string();
-                let pull_url = item.pull_request?.url;
-                in_scope(&repo, &self.owner, repos).then_some((repo, pull_url))
-            })
-            .collect();
-
-        let results: Vec<_> = stream::iter(in_scope)
-            .map(|(repo, pull_url)| async move {
-                let result = self.fetch_pull(&pull_url, &repo).await;
-                (repo, result)
-            })
-            .buffered(DETAIL_CONCURRENCY)
-            .collect()
-            .await;
-
-        let mut prs = Vec::new();
-        let mut failed_repos: Vec<(String, AppError)> = Vec::new();
-        for (repo, result) in results {
-            match result {
-                Ok(pr) => prs.push(pr),
-                Err(e) => {
-                    log::warn!("Failed to fetch PR in {repo}: {e}");
-                    if !failed_repos.iter().any(|(r, _)| *r == repo) {
-                        failed_repos.push((repo, e));
-                    }
-                }
-            }
-        }
-        // A repo with any failed PR is reported as failed so its previous PRs are kept.
-        prs.retain(|pr| !failed_repos.iter().any(|(r, _)| *r == pr.repo));
-
-        Ok(FetchReport { prs, failed_repos })
+        // The search spans every owner the token can see; `in_scope` keeps this account's.
+        let nodes = self.search(REVIEW_SCOPE).await?;
+        Ok(FetchReport {
+            prs: self.to_prs(nodes, repos, false),
+            failed_repos: Vec::new(),
+        })
     }
-}
-
-/// `https://api.github.com/repos/owner/name` → `owner/name`.
-fn repo_full_name(repository_url: &str) -> Option<&str> {
-    repository_url.split("/repos/").nth(1)
 }
 
 /// Whether `full_name` (`owner/name`) belongs to the account: same owner and, if `repos` is
@@ -247,11 +158,12 @@ fn in_scope(full_name: &str, owner: &str, repos: &[String]) -> bool {
         })
 }
 
-// ── GraphQL (own PRs) ────────────────────────────────────────────────────────
+// ── Search query ─────────────────────────────────────────────────────────────
 
-const MY_PRS_QUERY: &str = r#"
-query($q: String!) {
-  search(query: $q, type: ISSUE, first: 100) {
+const SEARCH_QUERY: &str = r#"
+query($q: String!, $cursor: String) {
+  search(query: $q, type: ISSUE, first: 100, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
     nodes {
       ... on PullRequest {
         number title url isDraft createdAt updatedAt headRefName baseRefName
@@ -283,6 +195,8 @@ query($q: String!) {
   }
 }"#;
 
+// ── GraphQL payloads ─────────────────────────────────────────────────────────
+
 #[derive(Debug, Deserialize)]
 struct GraphqlResponse {
     data: Option<GraphqlData>,
@@ -294,15 +208,40 @@ struct GraphqlError {
     message: String,
 }
 
+/// A response with errors and no data cannot be used; with partial data the errors only warn.
+fn graphql_data(response: GraphqlResponse) -> AppResult<GraphqlData> {
+    if let Some(error) = response.errors.as_ref().and_then(|errors| errors.first()) {
+        if response.data.is_none() {
+            return Err(AppError::Provider(format!(
+                "GitHub GraphQL: {}",
+                error.message
+            )));
+        }
+        log::warn!("GitHub GraphQL returned errors: {}", error.message);
+    }
+    response
+        .data
+        .ok_or_else(|| AppError::Provider("GitHub GraphQL returned no data".into()))
+}
+
 #[derive(Debug, Deserialize)]
 struct GraphqlData {
     search: GraphqlSearch,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GraphqlSearch {
-    /// Entries are `null` when the token cannot see the item, and `{}` for non-PR nodes.
+    page_info: PageInfo,
+    /// Entries are `null` when the token cannot see the item.
     nodes: Vec<Option<GqlPull>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PageInfo {
+    has_next_page: bool,
+    end_cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -347,6 +286,8 @@ struct GqlCount {
 
 #[derive(Debug, Deserialize)]
 struct GqlNodes<T> {
+    // `default = "Vec::new"` rather than `default`: serde's derive would otherwise demand
+    // `T: Default` for every node type.
     #[serde(default = "Vec::new")]
     nodes: Vec<T>,
 }
@@ -458,13 +399,15 @@ fn assess(pull: &GqlPull, rollup: Option<&GqlRollup>) -> MergeStatus {
 }
 
 impl GqlPull {
-    fn into_pr(self, account_id: &str) -> PullRequest {
+    /// `include_merge` is false for PRs the user only reviews: peekr shows merge readiness only
+    /// for their own PRs, and another author's blockers are not actionable here.
+    fn into_pr(self, account_id: &str, include_merge: bool) -> PullRequest {
         let rollup = self
             .commits
             .nodes
             .iter()
             .find_map(|n| n.commit.status_check_rollup.as_ref());
-        let merge = assess(&self, rollup);
+        let merge = include_merge.then(|| assess(&self, rollup));
         let ci_status = rollup.and_then(|r| match r.state.as_str() {
             "SUCCESS" => Some(CiStatus::Success),
             "FAILURE" | "ERROR" => Some(CiStatus::Failed),
@@ -499,170 +442,21 @@ impl GqlPull {
             draft: self.is_draft,
             approvals,
             ci_status,
-            merge: Some(merge),
+            merge,
         }
     }
 }
 
-// ── API payloads ─────────────────────────────────────────────────────────────
+// ── Login payload ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct GithubUser {
     login: String,
-    avatar_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchResponse {
-    items: Vec<SearchItem>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchItem {
-    repository_url: String,
-    /// Absent for plain issues; the query only asks for PRs.
-    pull_request: Option<PullLink>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PullLink {
-    url: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GitRef {
-    #[serde(rename = "ref")]
-    name: String,
-    /// Head commit; only read for `head`.
-    sha: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawReview {
-    user: Option<ReviewUser>,
-    state: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReviewUser {
-    login: String,
-}
-
-/// Reviews come oldest first; a reviewer's last approve/request-changes/dismissal decides,
-/// while plain comments don't change their standing.
-fn count_approvals(reviews: &[RawReview]) -> u32 {
-    let mut standing: std::collections::HashMap<&str, bool> = std::collections::HashMap::new();
-    for review in reviews {
-        let Some(user) = &review.user else { continue };
-        match review.state.as_str() {
-            "APPROVED" => standing.insert(&user.login, true),
-            "CHANGES_REQUESTED" | "DISMISSED" => standing.insert(&user.login, false),
-            _ => None,
-        };
-    }
-    standing.values().filter(|approved| **approved).count() as u32
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRuns {
-    check_runs: Vec<CheckRun>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRun {
-    status: String,
-    conclusion: Option<String>,
-}
-
-impl CheckRun {
-    fn ci_status(&self) -> CiStatus {
-        if self.status != "completed" {
-            return CiStatus::Pending;
-        }
-        match self.conclusion.as_deref() {
-            Some("success" | "neutral" | "skipped") => CiStatus::Success,
-            _ => CiStatus::Failed,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct CombinedStatus {
-    state: String,
-    #[serde(default)]
-    total_count: u32,
-}
-
-impl CombinedStatus {
-    /// `None` when the commit has no legacy statuses (GitHub reports "pending" for that).
-    fn ci_status(&self) -> Option<CiStatus> {
-        if self.total_count == 0 {
-            return None;
-        }
-        Some(match self.state.as_str() {
-            "success" => CiStatus::Success,
-            "pending" => CiStatus::Pending,
-            _ => CiStatus::Failed,
-        })
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct RawPull {
-    number: u64,
-    title: String,
-    html_url: String,
-    created_at: String,
-    updated_at: String,
-    #[serde(default)]
-    draft: bool,
-    user: Option<GithubUser>,
-    head: GitRef,
-    base: GitRef,
-    comments: Option<u32>,
-    review_comments: Option<u32>,
-}
-
-impl RawPull {
-    fn into_pr(self, account_id: &str, repo: &str) -> PullRequest {
-        let (author, avatar) = match self.user {
-            Some(user) => (user.login, user.avatar_url.unwrap_or_default()),
-            None => ("Unknown".to_string(), String::new()),
-        };
-        PullRequest {
-            provider: ProviderKind::Github,
-            account_id: account_id.to_string(),
-            repo: repo.to_string(),
-            number: self.number,
-            title: self.title,
-            author_display_name: author,
-            author_avatar_url: avatar,
-            source_branch: self.head.name,
-            destination_branch: self.base.name,
-            created_on: self.created_at,
-            updated_on: self.updated_at,
-            comment_count: self.comments.unwrap_or(0) + self.review_comments.unwrap_or(0),
-            html_url: self.html_url,
-            draft: self.draft,
-            approvals: 0,
-            ci_status: None,
-            merge: None,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn extracts_repo_from_api_url() {
-        assert_eq!(
-            repo_full_name("https://api.github.com/repos/acme/web"),
-            Some("acme/web")
-        );
-        assert_eq!(repo_full_name("https://example.com/other"), None);
-    }
 
     #[test]
     fn scope_matches_owner_case_insensitively() {
@@ -676,49 +470,6 @@ mod tests {
         assert!(in_scope("acme/web", "acme", &repos));
         assert!(in_scope("acme/API", "acme", &repos));
         assert!(!in_scope("acme/docs", "acme", &repos));
-    }
-
-    #[test]
-    fn approvals_use_each_reviewers_latest_verdict() {
-        let review = |login: &str, state: &str| RawReview {
-            user: Some(ReviewUser {
-                login: login.into(),
-            }),
-            state: state.into(),
-        };
-        let reviews = [
-            review("a", "APPROVED"),
-            review("a", "COMMENTED"),
-            review("b", "APPROVED"),
-            review("b", "CHANGES_REQUESTED"),
-            review("c", "APPROVED"),
-        ];
-        assert_eq!(count_approvals(&reviews), 2);
-    }
-
-    #[test]
-    fn maps_check_runs_and_statuses() {
-        let run = |status: &str, conclusion: Option<&str>| {
-            CheckRun {
-                status: status.into(),
-                conclusion: conclusion.map(Into::into),
-            }
-            .ci_status()
-        };
-        assert_eq!(run("completed", Some("success")), CiStatus::Success);
-        assert_eq!(run("completed", Some("skipped")), CiStatus::Success);
-        assert_eq!(run("completed", Some("failure")), CiStatus::Failed);
-        assert_eq!(run("in_progress", None), CiStatus::Pending);
-
-        let status = |state: &str, total_count| {
-            CombinedStatus {
-                state: state.into(),
-                total_count,
-            }
-            .ci_status()
-        };
-        assert_eq!(status("pending", 0), None);
-        assert_eq!(status("failure", 2), Some(CiStatus::Failed));
     }
 
     fn gql_pull(merge_state: &str, review_decision: Option<&str>, rollup: &str) -> GqlPull {
@@ -742,7 +493,7 @@ mod tests {
 
     #[test]
     fn clean_pr_is_ready_and_mapped() {
-        let pr = gql_pull("CLEAN", Some("APPROVED"), PASSING).into_pr("acc");
+        let pr = gql_pull("CLEAN", Some("APPROVED"), PASSING).into_pr("acc", true);
         let merge = pr.merge.clone().unwrap();
         assert!(merge.is_ready() && merge.blockers.is_empty());
         assert_eq!(pr.key(), "acc/acme/web#3");
@@ -751,8 +502,15 @@ mod tests {
     }
 
     #[test]
+    fn reviewed_prs_carry_no_merge_status() {
+        let pr = gql_pull("CLEAN", None, PASSING).into_pr("acc", false);
+        assert!(pr.merge.is_none());
+        assert_eq!(pr.ci_status, Some(CiStatus::Success));
+    }
+
+    #[test]
     fn blocked_pr_names_what_fails() {
-        let pr = gql_pull("BLOCKED", Some("CHANGES_REQUESTED"), FAILING).into_pr("acc");
+        let pr = gql_pull("BLOCKED", Some("CHANGES_REQUESTED"), FAILING).into_pr("acc", true);
         let merge = pr.merge.unwrap();
         assert_eq!(merge.state, MergeState::Blocked);
         assert_eq!(
@@ -765,7 +523,7 @@ mod tests {
     #[test]
     fn blocked_without_failures_is_waiting_or_protected() {
         let running = r#"{"state":"PENDING","contexts":{"nodes":[]}}"#;
-        let state = |d, r| gql_pull("BLOCKED", d, r).into_pr("a").merge.unwrap();
+        let state = |d, r| gql_pull("BLOCKED", d, r).into_pr("a", true).merge.unwrap();
         assert_eq!(state(None, running).blockers, vec!["Checks running"]);
         assert_eq!(
             state(Some("REVIEW_REQUIRED"), PASSING).blockers,
@@ -776,7 +534,13 @@ mod tests {
 
     #[test]
     fn other_merge_states() {
-        let state = |m| gql_pull(m, None, PASSING).into_pr("a").merge.unwrap().state;
+        let state = |m| {
+            gql_pull(m, None, PASSING)
+                .into_pr("a", true)
+                .merge
+                .unwrap()
+                .state
+        };
         assert_eq!(state("UNSTABLE"), MergeState::Ready);
         assert_eq!(state("BEHIND"), MergeState::Behind);
         assert_eq!(state("DIRTY"), MergeState::Conflicts);
@@ -785,38 +549,27 @@ mod tests {
 
     #[test]
     fn search_nodes_tolerate_nulls_and_missing_rollup() {
-        let data: GraphqlData = serde_json::from_str(r#"{"search":{"nodes":[null]}}"#).unwrap();
+        let data: GraphqlData = serde_json::from_str(
+            r#"{"search":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[null]}}"#,
+        )
+        .unwrap();
         assert!(data.search.nodes[0].is_none());
-        let pr = gql_pull("CLEAN", None, "null").into_pr("a");
+        let pr = gql_pull("CLEAN", None, "null").into_pr("a", true);
         assert_eq!(pr.ci_status, None);
     }
 
     #[test]
-    fn search_item_and_pull_parse() {
-        let item: SearchItem = serde_json::from_str(
-            r#"{"repository_url":"https://api.github.com/repos/acme/web",
-                "pull_request":{"url":"https://api.github.com/repos/acme/web/pulls/7"},"extra":1}"#,
+    fn graphql_errors_are_fatal_only_without_data() {
+        let no_data: GraphqlResponse =
+            serde_json::from_str(r#"{"data":null,"errors":[{"message":"Bad credentials"}]}"#)
+                .unwrap();
+        assert!(graphql_data(no_data).is_err());
+
+        let partial: GraphqlResponse = serde_json::from_str(
+            r#"{"data":{"search":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}},
+                "errors":[{"message":"something timed out"}]}"#,
         )
         .unwrap();
-        assert_eq!(
-            item.pull_request.unwrap().url,
-            "https://api.github.com/repos/acme/web/pulls/7"
-        );
-
-        let pr = serde_json::from_str::<RawPull>(
-            r#"{"number":7,"title":"Add x","html_url":"https://github.com/acme/web/pull/7",
-                "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-02T00:00:00Z","draft":true,
-                "user":{"login":"octo","avatar_url":"http://a/o.png"},
-                "head":{"ref":"feat","sha":"abc"},"base":{"ref":"main"},"comments":2,"review_comments":3}"#,
-        )
-        .unwrap()
-        .into_pr("acc", "acme/web");
-        assert_eq!(pr.key(), "acc/acme/web#7");
-        assert_eq!((pr.comment_count, pr.draft), (5, true));
-        assert_eq!(
-            (pr.source_branch.as_str(), pr.destination_branch.as_str()),
-            ("feat", "main")
-        );
-        assert_eq!(pr.author_display_name, "octo");
+        assert!(graphql_data(partial).is_ok());
     }
 }
