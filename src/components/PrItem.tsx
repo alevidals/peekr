@@ -19,15 +19,21 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-const CI_LABEL: Record<CiStatus, string> = {
-  success: "Pipeline passed",
-  failed: "Pipeline failed",
-  pending: "Pipeline running",
+const CI_STATE: Record<CiStatus, string> = {
+  success: "passed",
+  failed: "failed",
+  pending: "running",
 };
 
-function CiBadge({ status }: { status: CiStatus }) {
+/** GitHub calls them checks (Actions and commit statuses); Bitbucket calls them pipelines. */
+function ciLabel(provider: PullRequest["provider"], status: CiStatus): string {
+  return `${provider === "github" ? "Checks" : "Pipeline"} ${CI_STATE[status]}`;
+}
+
+function CiBadge({ provider, status }: { provider: PullRequest["provider"]; status: CiStatus }) {
+  const label = ciLabel(provider, status);
   return (
-    <span className={`ci-badge ci-badge--${status}`} title={CI_LABEL[status]} aria-label={CI_LABEL[status]}>
+    <span className={`ci-badge ci-badge--${status}`} title={label} aria-label={label}>
       {status === "success" && <IconCheck size={10} />}
       {status === "failed" && <IconX size={10} />}
     </span>
@@ -51,10 +57,22 @@ function MergePill({ pr }: { pr: PullRequest }) {
   const label = merge.state === "ready" && pr.provider === "bitbucket" ? "Looks ready" : MERGE_LABEL[merge.state];
   // Do not repeat the label as its own blocker ("Behind base · Behind base").
   const blockers = merge.blockers.filter((blocker) => blocker.toLowerCase() !== label.toLowerCase());
+  // GitHub keeps a PR mergeable when only non-required checks fail or are still running
+  // (`UNSTABLE`); the CI badge shows it, so name the caveat next to the ready state.
+  const caveat =
+    merge.state !== "ready"
+      ? null
+      : pr.ci_status === "failed"
+        ? "Other checks failing"
+        : pr.ci_status === "pending"
+          ? "Other checks running"
+          : null;
+  const notes = caveat ? [...blockers, caveat] : blockers;
+  const title = [...merge.blockers, ...(caveat ? [caveat] : [])].join("\n") || label;
   return (
-    <span className={`merge-pill merge-pill--${merge.state}`} title={merge.blockers.join("\n") || label}>
+    <span className={`merge-pill merge-pill--${merge.state}`} title={title}>
       <span className="merge-pill-label">{label}</span>
-      {blockers.length > 0 && <span className="merge-pill-blockers">{blockers.join(", ")}</span>}
+      {notes.length > 0 && <span className="merge-pill-blockers">{notes.join(", ")}</span>}
     </span>
   );
 }
@@ -101,7 +119,7 @@ export const PrItem = memo(function PrItem({ pr, index = 0 }: Props) {
         <span className="pr-item-footer">
           <span className="pr-item-author" title={pr.author_display_name}>{pr.author_display_name}</span>
           <span className="pr-item-footer-right">
-            {pr.ci_status && <CiBadge status={pr.ci_status} />}
+            {pr.ci_status && <CiBadge provider={pr.provider} status={pr.ci_status} />}
             {pr.approvals > 0 && (
               <span
                 className="pr-item-approvals"

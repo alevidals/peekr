@@ -16,6 +16,12 @@
 
 ### Changed
 
+- The list and notifications use the same vocabulary for both providers: Bitbucket repos
+  appear as `workspace/repo`, GitHub shows the profile name when set, CI is "checks" on
+  GitHub and "pipelines" on Bitbucket, and Bitbucket's inferred ready state says "Looks
+  ready to merge".
+- When GitHub reports a PR as mergeable while non-required checks are failing or still
+  running (`UNSTABLE`), the merge pill names that caveat instead of hiding the ready state.
 - GitHub review requests come from a single paginated GraphQL search instead of four REST
   calls per PR, so a poll makes far fewer requests and no longer stops at 100 PRs.
 - Bitbucket fans out with at most 8 requests at once, and a run of failed polls backs off
@@ -41,6 +47,11 @@
 
 ### Fixed
 
+- Two accounts for the same workspace are rejected, and a PR seen through more than one
+  account is listed, counted and notified only once.
+- Network errors carry the underlying cause (DNS, TLS, connection reset) and a transient
+  request is retried once. Poll errors from both tabs are emitted together, without
+  duplicate lines.
 - Saving settings could delete the stored token of a removed account before the new config
   reached the disk, and a keychain error during the v1 migration started the app empty. The
   config is now written atomically, unreadable files are backed up, and tokens are only

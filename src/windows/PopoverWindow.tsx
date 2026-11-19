@@ -166,8 +166,8 @@ export function PopoverWindow() {
           {hasCi && (
             <button
               className={`icon-btn${onlyPassing ? " filter-btn--active" : ""}`}
-              title={onlyPassing ? "Show all pipelines" : "Only PRs with passing pipeline"}
-              aria-label={onlyPassing ? "Show all pipelines" : "Only PRs with passing pipeline"}
+              title={onlyPassing ? "Show all PRs" : "Only PRs with passing CI"}
+              aria-label={onlyPassing ? "Show all PRs" : "Only PRs with passing CI"}
               aria-pressed={onlyPassing}
               onClick={() => setOnlyPassing((v) => !v)}
             >

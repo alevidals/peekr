@@ -1,7 +1,7 @@
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::domain::{CiStatus, PullRequest};
+use crate::domain::{CiStatus, ProviderKind, PullRequest};
 
 /// PRs in `current` that were not in `previous`.
 pub fn newly_added<'a>(
@@ -49,14 +49,27 @@ pub fn my_pr_events<'a>(
         .collect()
 }
 
+/// Title for a transition, in the vocabulary of the provider: Bitbucket has no merge verdict
+/// (its "ready" is an inference) and calls CI pipelines, not checks.
+fn event_title(pr: &PullRequest, event: &MyPrEvent) -> &'static str {
+    match (event, pr.provider) {
+        (MyPrEvent::BecameReady, ProviderKind::Bitbucket) => "Looks ready to merge",
+        (MyPrEvent::BecameReady, ProviderKind::Github) => "Ready to merge",
+        (MyPrEvent::ChecksFailed, ProviderKind::Bitbucket) => "Pipeline failed",
+        (MyPrEvent::ChecksFailed, ProviderKind::Github) => "Checks failed",
+    }
+}
+
 /// One notification per event, so each can be clicked through to its own PR.
 pub fn notify_my_pr_events(app: &AppHandle, events: &[(&PullRequest, MyPrEvent)]) {
     for (pr, event) in events {
-        let (title, body) = match event {
-            MyPrEvent::BecameReady => ("Ready to merge", pr.title.clone()),
-            MyPrEvent::ChecksFailed => ("Checks failed", pr.title.clone()),
-        };
-        send(app, title, format!("{body} ({})", pr.repo), &pr.html_url);
+        let title = event_title(pr, event);
+        send(
+            app,
+            title,
+            format!("{} ({})", pr.title, pr.repo),
+            &pr.html_url,
+        );
     }
 }
 
@@ -195,6 +208,32 @@ mod tests {
         assert_eq!(
             events,
             vec![(1, MyPrEvent::BecameReady), (2, MyPrEvent::ChecksFailed)]
+        );
+    }
+
+    #[test]
+    fn notification_titles_match_the_provider() {
+        let bitbucket = mine(1, MergeState::Ready, Some(CiStatus::Success));
+        assert_eq!(
+            event_title(&bitbucket, &MyPrEvent::BecameReady),
+            "Looks ready to merge"
+        );
+        assert_eq!(
+            event_title(&bitbucket, &MyPrEvent::ChecksFailed),
+            "Pipeline failed"
+        );
+
+        let github = PullRequest {
+            provider: ProviderKind::Github,
+            ..bitbucket
+        };
+        assert_eq!(
+            event_title(&github, &MyPrEvent::BecameReady),
+            "Ready to merge"
+        );
+        assert_eq!(
+            event_title(&github, &MyPrEvent::ChecksFailed),
+            "Checks failed"
         );
     }
 
