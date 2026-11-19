@@ -21,4 +21,12 @@ export default [
       "react-hooks/exhaustive-deps": "warn",
     },
   },
+  {
+    files: ["scripts/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
 ];

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::{
     config::{self, Account, AppConfig, Appearance, Theme},
@@ -209,6 +210,16 @@ pub fn hide_popover(app: AppHandle) -> AppResult<()> {
     if let Some(win) = app.get_webview_window(crate::popover::LABEL) {
         crate::popover::schedule_hide(&win);
     }
+    Ok(())
+}
+
+/// Opens the platform log directory in the file manager.
+#[tauri::command]
+pub fn open_logs(app: AppHandle) -> AppResult<()> {
+    let dir = app.path().app_log_dir()?;
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| AppError::Config(format!("Could not open the log folder: {e}")))?;
     Ok(())
 }
 

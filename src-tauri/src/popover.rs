@@ -201,6 +201,17 @@ pub fn toggle(app: &AppHandle) {
     show_focused(&window);
 }
 
+/// Shows the popover without toggling it. Used when a second instance launches.
+pub fn show(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return;
+    };
+    let _ = window.move_window(Position::TrayBottomCenter);
+    let _ = window.emit("popover-will-show", ());
+    app.state::<HideState>().mark_now();
+    show_focused(&window);
+}
+
 /// Converts the configured window into a non-activating `NSPanel` and lets it join every
 /// Space, including a full-screen one. Without this, macOS refuses to draw a normal window
 /// over another app's full-screen Space and the popover ends up on the desktop instead.

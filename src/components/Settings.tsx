@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { getConfig, saveConfig, validateCredentials } from "../api";
+import { getConfig, openLogs, saveConfig, validateCredentials } from "../api";
 import { applyAppearance } from "../theme";
 import {
   DEFAULT_APPEARANCE,
@@ -11,6 +11,7 @@ import {
   type Theme,
 } from "../types";
 import { THEME_OPTIONS, type ThemeOption } from "../themes";
+import { PROVIDERS } from "../providers";
 import {
   blankDraft,
   configToDrafts,
@@ -20,6 +21,7 @@ import {
 } from "../drafts";
 import { IconAccount, IconPalette, IconPlus, IconSettings } from "./Icons";
 import { AccountForm } from "./AccountForm";
+import { ConfirmDialog } from "./ConfirmDialog";
 import "./Settings.css";
 
 interface Props {
@@ -94,6 +96,9 @@ export function Settings({ onSaved, onClose }: Props) {
   const [messages, setMessages] = useState<Record<string, Message | null>>({});
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [section, setSection] = useState<Section>("accounts");
+  const [pendingRemoval, setPendingRemoval] = useState<AccountDraft | null>(null);
+  const addAccountRef = useRef<HTMLButtonElement>(null);
+  const previousAccountCount = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -156,6 +161,22 @@ export function Settings({ onSaved, onClose }: Props) {
       return next;
     });
   }, []);
+
+  const requestRemoval = useCallback((draft: AccountDraft) => setPendingRemoval(draft), []);
+
+  const confirmRemoval = useCallback(() => {
+    if (!pendingRemoval) return;
+    handleRemove(pendingRemoval.key);
+    setPendingRemoval(null);
+  }, [handleRemove, pendingRemoval]);
+
+  // After a removal the trigger disappears; keep keyboard users in the account section.
+  useEffect(() => {
+    if (drafts.length < previousAccountCount.current) {
+      addAccountRef.current?.focus();
+    }
+    previousAccountCount.current = drafts.length;
+  }, [drafts.length]);
 
   const handleValidate = useCallback(
     async (draft: AccountDraft) => {
@@ -222,9 +243,21 @@ export function Settings({ onSaved, onClose }: Props) {
     }
   }
 
+  async function handleOpenLogs() {
+    setMessage("", null);
+    try {
+      await openLogs();
+    } catch (e) {
+      setMessage("", { type: "error", text: String(e) });
+    }
+  }
+
   const canSave = drafts.every(isDraftComplete);
   const formMessage = messages[""];
   const currentSection = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
+  const removingSaved = pendingRemoval?.id != null;
+  const removalName = pendingRemoval?.workspace.trim() || "this account";
+  const removalProvider = pendingRemoval ? PROVIDERS[pendingRemoval.kind].label : "";
 
   function onNavKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -240,7 +273,7 @@ export function Settings({ onSaved, onClose }: Props) {
   }
 
   return (
-    <div className="settings">
+    <div className="settings" inert={pendingRemoval !== null}>
       <header className="settings-header" data-tauri-drag-region>
         <img className="settings-logo" src="/app-icon.png" alt="" />
         <div className="settings-header-text">
@@ -326,11 +359,12 @@ export function Settings({ onSaved, onClose }: Props) {
                     validating={validatingKey === draft.key}
                     onChange={handleDraftChange}
                     onValidate={handleValidate}
-                    onRemove={handleRemove}
+                    onRequestRemove={requestRemoval}
                   />
                 ))}
 
                 <button
+                  ref={addAccountRef}
                   type="button"
                   className="add-account"
                   onClick={() => setDrafts((ds) => [...ds, blankDraft()])}
@@ -374,6 +408,15 @@ export function Settings({ onSaved, onClose }: Props) {
                     className={`switch${autostart ? " switch--on" : ""}`}
                     onClick={() => setAutostart((v) => !v)}
                   />
+                </div>
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title">Logs</span>
+                    <span className="hint">Open the folder with the application log</span>
+                  </div>
+                  <button type="button" className="btn btn--secondary" onClick={handleOpenLogs}>
+                    Open logs
+                  </button>
                 </div>
               </div>
             )}
@@ -481,6 +524,25 @@ export function Settings({ onSaved, onClose }: Props) {
           </button>
         </div>
       </footer>
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        title={removingSaved ? "Remove account?" : "Discard account?"}
+        description={
+          removingSaved ? (
+            <>
+              Saving will remove <strong>{removalName}</strong> from {removalProvider} and
+              delete its stored token from the keychain. This cannot be undone.
+            </>
+          ) : (
+            "This account has not been saved yet. Discarding it will lose the workspace, token and repository details you entered."
+          )
+        }
+        confirmLabel={removingSaved ? "Remove account" : "Discard account"}
+        cancelLabel={removingSaved ? "Keep account" : "Keep editing"}
+        onConfirm={confirmRemoval}
+        onCancel={() => setPendingRemoval(null)}
+      />
     </div>
   );
 }

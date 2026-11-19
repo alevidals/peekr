@@ -1,54 +1,134 @@
-# peekr
+<p align="center">
+  <img src="public/app-icon.png" width="96" height="96" alt="peekr" />
+</p>
 
-Tray app (Tauri 2 + React) that shows the pull requests waiting for your review, with a badge on the tray icon and a notification when a new one arrives.
+<h1 align="center">peekr</h1>
 
-Supported providers: **Bitbucket Cloud** and **GitHub**. Several accounts of either can be configured.
+<p align="center">
+  A tray-first desktop client for the pull requests waiting on you.<br />
+  Bitbucket Cloud and GitHub, native notifications, a live badge in the menu bar,
+  and a popover that stays out of the way.
+</p>
 
-Only PRs still waiting on you are listed: Bitbucket PRs you already approved are hidden, and GitHub drops a PR from `review-requested:@me` once you submit a review (requests to your teams are included).
+<p align="center">
+  <a href="https://github.com/alevidals/peekr/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/alevidals/peekr/ci.yml?branch=main&style=flat-square&label=ci" /></a>
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" />
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-64748b?style=flat-square" />
+  <img alt="Stack" src="https://img.shields.io/badge/stack-Tauri%202%20%C2%B7%20React%2019-4f8cff?style=flat-square" />
+</p>
+
+<p align="center">
+  <a href="docs/USER_GUIDE.md">User guide</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+## What it does
+
+peekr lives in the tray. A badge shows how many pull requests are waiting for
+your review, and a click opens a compact popover with the list. A notification
+arrives once per new request, and clicking it opens the PR in your browser.
+
+A second tab lists your own open PRs and tells you whether each one could be
+merged now. GitHub supplies its own verdict. Bitbucket uses its mergeability
+checks when the token can read them, and otherwise falls back to pipelines,
+approvals, requested changes and open tasks.
+
+## Highlights
+
+|                                       |                                                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Two providers, many accounts**      | Bitbucket Cloud and GitHub, each with any number of workspaces or organisations. A PR seen through two accounts is listed, counted and notified once. |
+| **An inbox, not a dashboard**         | Only PRs still waiting on you: Bitbucket hides the ones you already approved, and GitHub drops a PR from `review-requested:@me` once you review it.  |
+| **My PRs with an honest verdict**     | GitHub's `mergeStateStatus` follows branch protection. Bitbucket uses mergeability checks when available and labels the fallback inference "Looks ready". |
+| **Notifications that point somewhere** | One notification per new request or readiness change, and clicking it opens that exact PR. The first poll of an account never floods the user.        |
+| **A native macOS popover**            | A non-activating panel that opens over full-screen apps and on any Space, keeps keyboard focus and closes on `Esc` or a click outside.              |
+| **Themes that belong here**           | System, light and dark, plus One Dark, Gruvbox, Nord, Dracula, Solarized, Tokyo Night and Catppuccin, with density and text-size controls.          |
+| **Tokens stay in the keychain**       | Access tokens live in the OS credential store. `config.json` and logs never contain them, and the webview never receives a stored token back.        |
+
+## Status
+
+`0.1.0` is the current development line. The app runs from source today; CI,
+release and security workflows are in place, and the first tagged release is the
+next step. See the [roadmap](docs/ROADMAP.md) for the release plan.
+
+## Run it
+
+Prerequisites: [Bun](https://bun.sh) 1.4.4+, Rust 1.99.1+ and the
+[Tauri 2 platform dependencies](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+bun install
+bun run tauri dev      # desktop app with hot reload
+```
+
+On first launch, click the tray icon, open **Settings**, and add at least one
+account. The [user guide](docs/USER_GUIDE.md#add-an-account) explains which
+token scopes Bitbucket and GitHub need.
+
+To build the bundles for the current platform:
+
+```bash
+bun run tauri build
+```
+
+Artifacts land in `src-tauri/target/release/bundle/`. Builds are not Developer ID
+signed or notarized; the release workflow applies an ad-hoc macOS signature and
+publishes checksums with every draft. Read [SECURITY.md](SECURITY.md) before
+distributing one.
+
+## Documentation
+
+- [User guide](docs/USER_GUIDE.md): install, accounts, notifications and troubleshooting
+- [Architecture](docs/ARCHITECTURE.md): layers, polling pipeline, IPC contract and security model
+- [Contributing](CONTRIBUTING.md): setup, branches, checks and pull requests
+- [Release and packaging](docs/RELEASE.md): CI, artifacts, versioning and signing
+- [Dependency evaluation](docs/DEPENDENCIES.md): what is used and why
+- [Architecture decision records](docs/adr/README.md): the decisions behind the stack
+- [Roadmap](docs/ROADMAP.md) and [progress log](docs/PROGRESS.md)
+- [Changelog](CHANGELOG.md): what changed in each release
+
+The full index is in [docs/README.md](docs/README.md).
 
 ## Development
 
-```sh
+```bash
 bun install
-bun run tauri dev      # dev mode
-bun run tauri build    # production bundle
-cargo test --manifest-path src-tauri/Cargo.toml
+bun run tauri dev      # app with hot reload
+bun run check          # typecheck, ESLint, Rust gates and production build
 ```
 
-### My PRs
+Individual gates:
 
-The "My PRs" tab lists your own open PRs and whether each could be merged now, and notifies you when one becomes ready or its checks fail.
-- **GitHub**: uses GitHub's own verdict (`mergeStateStatus`), so required checks, required reviews, conflicts and "branch behind" follow the branch protection. The token must be able to read PRs and checks via GraphQL.
-- **Bitbucket**: no merge verdict exists in the API and merge rules need admin access to read, so "Looks ready" is inferred from build statuses, approvals, requested changes and open tasks. Merge conflicts are not detected.
-
-## Architecture
-
-```
-src-tauri/src/
-  domain.rs      provider-agnostic PullRequest / ProviderKind
-  provider/      ReviewProvider trait + one module per service (bitbucket.rs)
-  config.rs      accounts + polling interval (JSON, with migrations)
-  secrets.rs     one keychain entry per account
-  state.rs       in-memory config/token snapshot, PR list, poll trigger
-  poller.rs      background loop: fetch all accounts → state, event, badge, notifications
-  notifier.rs    "what's new" diff + native notification
-  popover.rs     show/hide behaviour of the tray popover
-  tray/          tray icon, badge rendering
-  commands.rs    Tauri commands exposed to the frontend
-src/
-  api.ts         the only place that knows command/event names
-  providers.tsx  per-provider UI copy
-  windows/       PopoverWindow, SettingsWindow
-  components/ hooks/
+```bash
+bun run typecheck
+bun run lint
+bun run build
+bun run rust:lint      # rustfmt + clippy with warnings as errors
+bun run rust:test
 ```
 
-### Adding a provider
+The architecture and test strategy are described in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Manual acceptance steps live in
+[QA-CHECKLIST.md](QA-CHECKLIST.md).
 
-1. Implement `ReviewProvider` in `src-tauri/src/provider/<name>.rs` (map API payloads to `PullRequest`).
-2. Add it to `ProviderKind` and to the `match` in `provider::build`.
-3. Add its entry to `src/providers.tsx` and the `ProviderKind` type.
+## Contributing
 
-Nothing else (poller, tray, notifications, list UI) needs to change. `provider/github.rs` is a compact example.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development setup, branch workflow and checks. By participating, you agree to
+follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues through
+[SECURITY.md](SECURITY.md), never in a public issue.
+
+## Stack
+
+Tauri 2 · React 19 · TypeScript · Vite · Rust · Tokio · reqwest · keyring ·
+`tauri-plugin-positioner` · `tauri-plugin-single-instance` · `tauri-plugin-log` ·
+`tauri-nspanel` · `mac-notification-sys` / `notify-rust` · ESLint · Vitest
+
+## License
+
+MIT. See [LICENSE](LICENSE). Security reports: [SECURITY.md](SECURITY.md).
 
 ---
 

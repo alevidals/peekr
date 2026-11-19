@@ -1,0 +1,7 @@
+# cargo-audit configuration.
+#
+# An accepted advisory goes in `ignore` with the RUSTSEC id and a comment that
+# explains why it does not apply and what would remove it. Empty means no
+# advisory is currently accepted.
+[advisories]
+ignore = []

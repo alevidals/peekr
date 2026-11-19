@@ -2,8 +2,16 @@
 
 ## Unreleased
 
+## 0.1.0 — 2026-11-19
+
 ### Added
 
+- Launching peekr while it is already running now focuses the existing popover instead of
+  starting a second tray process.
+- The app writes a rotating log file (2 MiB) in the platform log directory, and Settings →
+  General → **Open logs** reveals it.
+- Removing an account now asks for confirmation. The dialog explains that saving removes
+  the account and deletes its keychain token; a new, unsaved account is discarded instead.
 - The popover is now a non-activating macOS panel: it opens over full-screen apps and on
   any desktop without switching Spaces, and keeps keyboard focus.
 - `Esc` hides the popover. `/` still opens the search from anywhere.
@@ -47,6 +55,12 @@
 
 ### Fixed
 
+- My PR notifications are announced once per PR update. A provider that briefly reports a
+  different merge state between polls (for example Bitbucket's best-effort mergeability
+  checks) no longer repeats the same "ready to merge" or "pipeline failed" notification.
+- Network requests now really retry after a dropped connection. The retry path only covered
+  response decoding, so a `connection closed before message completed` error from the
+  transport bypassed it and surfaced on every poll.
 - Two accounts for the same workspace are rejected, and a PR seen through more than one
   account is listed, counted and notified only once.
 - Network errors carry the underlying cause (DNS, TLS, connection reset) and a transient
@@ -80,8 +94,22 @@
   from assistive technology.
 - Tracked-caps labels, middle-dot meta strings and the arrow glued to the token link are gone.
 
+### Documentation
+
+- Added the project documentation set: a rewritten README, a user guide, architecture,
+  dependency evaluation, release plan, roadmap, progress log and seven ADRs under `docs/`.
+- Added contribution, security and code-of-conduct documents, a manual QA checklist, and
+  GitHub issue and pull-request templates.
+
 ### Tooling
 
+- Added GitHub Actions for CI (frontend, Rust gates and a three-platform
+  `cargo check` matrix), tagged releases (portable archives, installers,
+  `SHA256SUMS` and a draft release) and weekly dependency audits.
+- Added `bun run version:check` to keep `package.json`, `Cargo.toml`,
+  `tauri.conf.json` and the release tag in sync.
 - Added ESLint with the React hooks rules.
-- New scripts: `typecheck`, `rust:check`, `rust:test`, `rust:lint` and `check`.
+- Added Vitest + Testing Library with tests for search, drafts, themes and the confirmation
+  dialog; `bun run check` now runs them.
+- New scripts: `typecheck`, `test`, `rust:check`, `rust:test`, `rust:lint` and `check`.
 - `rustfmt` applied across the crate; `cargo clippy -D warnings` is clean.

@@ -21,6 +21,7 @@ export const refreshPullRequests = () => invoke<void>("refresh_pull_requests");
 export const openSettingsWindow = () => invoke<void>("open_settings_window");
 export const hideSettingsWindow = () => invoke<void>("hide_settings_window");
 export const hidePopover = () => invoke<void>("hide_popover");
+export const openLogs = () => invoke<void>("open_logs");
 
 export const onPrsUpdated = (cb: (prs: PullRequest[]) => void): Promise<UnlistenFn> =>
   listen<PullRequest[]>("prs-updated", (e) => cb(e.payload));

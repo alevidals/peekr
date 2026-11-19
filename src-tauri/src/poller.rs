@@ -57,6 +57,7 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
     // PRs already announced. A search is eventually consistent: a known PR can vanish for a
     // poll and come back, and that must not notify twice.
     let mut notified: HashSet<String> = HashSet::new();
+    let mut mine_notifications = notifier::MyPrNotificationState::default();
     let mut failures = 0;
 
     loop {
@@ -97,7 +98,15 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
 
         let mut errors =
             poll_once(&app, results, &active.problems, &mut seeded, &mut notified).await;
-        errors.extend(poll_mine(&app, mine_results, &mut seeded_mine).await);
+        errors.extend(
+            poll_mine(
+                &app,
+                mine_results,
+                &mut seeded_mine,
+                &mut mine_notifications,
+            )
+            .await,
+        );
         emit_errors(&app, errors);
 
         failures = if failed_round {
@@ -343,6 +352,7 @@ async fn poll_mine(
     app: &AppHandle,
     results: Vec<(&ActiveAccount, AppResult<FetchReport>)>,
     seeded: &mut HashSet<String>,
+    mine_notifications: &mut notifier::MyPrNotificationState,
 ) -> Vec<String> {
     let batch = collect_batch(results, Scope::Mine);
 
@@ -357,6 +367,7 @@ async fn poll_mine(
         .into_iter()
         .filter(|(pr, _)| seeded.contains(&pr.account_id))
         .collect();
+    let events = mine_notifications.filter(events);
     if log::log_enabled!(log::Level::Debug) {
         let diff = list_diff(&current, &prs);
         log::debug!(

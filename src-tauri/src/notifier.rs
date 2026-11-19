@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
@@ -8,7 +10,7 @@ pub fn newly_added<'a>(
     previous: &[PullRequest],
     current: &'a [PullRequest],
 ) -> Vec<&'a PullRequest> {
-    let known: std::collections::HashSet<String> = previous.iter().map(PullRequest::key).collect();
+    let known: HashSet<String> = previous.iter().map(PullRequest::key).collect();
     current
         .iter()
         .filter(|pr| !known.contains(&pr.key()))
@@ -16,10 +18,46 @@ pub fn newly_added<'a>(
 }
 
 /// Something worth telling the user about one of their own PRs.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MyPrEvent {
     BecameReady,
     ChecksFailed,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct Announcement {
+    pr: String,
+    event: MyPrEvent,
+    updated_on: String,
+}
+
+/// Remembers which readiness/failure events already produced a desktop notification.
+///
+/// Provider data can briefly disagree between polls (Bitbucket's mergeability endpoint is
+/// best effort, and a build/approval can be re-read). Without this ledger, a ready PR that
+/// flips to waiting and back announces the same event every time. A new `updated_on` starts a
+/// new announcement, so a real update can notify again.
+#[derive(Debug, Default)]
+pub struct MyPrNotificationState {
+    announced: HashSet<Announcement>,
+}
+
+impl MyPrNotificationState {
+    pub fn filter<'a>(
+        &mut self,
+        events: Vec<(&'a PullRequest, MyPrEvent)>,
+    ) -> Vec<(&'a PullRequest, MyPrEvent)> {
+        events
+            .into_iter()
+            .filter(|(pr, event)| {
+                self.announced.insert(Announcement {
+                    pr: pr.key(),
+                    event: *event,
+                    updated_on: pr.updated_on.clone(),
+                })
+            })
+            .collect()
+    }
 }
 
 /// Transitions between two polls of the user's PRs. PRs that are new in `current` raise
@@ -208,6 +246,36 @@ mod tests {
         assert_eq!(
             events,
             vec![(1, MyPrEvent::BecameReady), (2, MyPrEvent::ChecksFailed)]
+        );
+    }
+
+    #[test]
+    fn announces_the_same_event_only_once_per_pr_update() {
+        let mut ready = mine(1, MergeState::Ready, Some(CiStatus::Success));
+        ready.updated_on = "2026-11-19T10:00:00Z".into();
+        let mut state = MyPrNotificationState::default();
+
+        assert_eq!(
+            state.filter(vec![(&ready, MyPrEvent::BecameReady)]).len(),
+            1
+        );
+        // A provider that briefly reports the PR as not ready must not announce it again.
+        assert!(state
+            .filter(vec![(&ready, MyPrEvent::BecameReady)])
+            .is_empty());
+
+        // A different event for the same update is still worth announcing.
+        assert_eq!(
+            state.filter(vec![(&ready, MyPrEvent::ChecksFailed)]).len(),
+            1
+        );
+
+        // New activity is a new version of the PR.
+        let mut updated = ready;
+        updated.updated_on = "2026-11-19T11:00:00Z".into();
+        assert_eq!(
+            state.filter(vec![(&updated, MyPrEvent::BecameReady)]).len(),
+            1
         );
     }
 

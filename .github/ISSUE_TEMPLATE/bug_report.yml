@@ -1,0 +1,94 @@
+name: Bug report
+description: Report a reproducible problem with peekr.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Search existing issues first, and remove tokens,
+        workspace names and private repository names from logs and screenshots.
+  - type: input
+    id: version
+    attributes:
+      label: peekr version
+      description: The version shown in Settings or the release tag.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Bitbucket
+        - GitHub
+        - Both
+        - Not provider-specific
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Tray or badge
+        - Popover or search
+        - Review requests
+        - My PRs
+        - Notifications
+        - Settings or appearance
+        - Keychain or configuration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, in order?
+      placeholder: |
+        1. Open the popover...
+        2. Click...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove tokens, workspace names and private repository names before pasting.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed tokens and private data from the report.
+          required: true

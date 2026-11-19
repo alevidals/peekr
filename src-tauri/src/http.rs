@@ -37,18 +37,28 @@ pub async fn send_json<T: DeserializeOwned>(
     let request = request.build()?;
     let retry = request.try_clone();
 
-    match json(client.execute(request).await?).await {
+    match send_json_once(client, request).await {
         Ok(value) => Ok(value),
         Err(error) if retryable(&error) => match retry {
             Some(request) => {
                 log::debug!("Retrying after a transient request error: {error}");
                 sleep(RETRY_DELAY).await;
-                json(client.execute(request).await?).await
+                send_json_once(client, request).await
             }
             None => Err(error),
         },
         Err(error) => Err(error),
     }
+}
+
+/// One attempt. Kept separate so a failure while connecting or sending is retried too, not
+/// only a failure while decoding the body.
+async fn send_json_once<T: DeserializeOwned>(
+    client: &Client,
+    request: reqwest::Request,
+) -> AppResult<T> {
+    let response = client.execute(request).await?;
+    json(response).await
 }
 
 fn retryable(error: &AppError) -> bool {
@@ -116,5 +126,40 @@ mod tests {
         assert_eq!(first_line(""), "");
         let long = "x".repeat(BODY_SNIPPET + 10);
         assert_eq!(first_line(&long).chars().count(), BODY_SNIPPET + 1);
+    }
+
+    #[tokio::test]
+    async fn retries_when_the_connection_closes_before_a_response() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = std::thread::spawn(move || {
+            // First attempt: accept the request and close without an HTTP response.
+            let (mut first, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 4096];
+            let _ = first.read(&mut buf);
+            drop(first);
+
+            // Retry: answer with a minimal JSON body.
+            let (mut second, _) = listener.accept().unwrap();
+            let _ = second.read(&mut buf);
+            second
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                )
+                .unwrap();
+        });
+
+        let client = Client::builder().build().unwrap();
+        let value: serde_json::Value =
+            send_json(&client, client.get(format!("http://{addr}/retry")))
+                .await
+                .unwrap();
+
+        assert_eq!(value, serde_json::json!({}));
+        server.join().unwrap();
     }
 }

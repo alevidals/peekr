@@ -11,7 +11,7 @@ interface Props {
   validating: boolean;
   onChange: (key: string, patch: Partial<AccountDraft>) => void;
   onValidate: (draft: AccountDraft) => void;
-  onRemove: (key: string) => void;
+  onRequestRemove: (draft: AccountDraft) => void;
 }
 
 export const AccountForm = memo(function AccountForm({
@@ -21,7 +21,7 @@ export const AccountForm = memo(function AccountForm({
   validating,
   onChange,
   onValidate,
-  onRemove,
+  onRequestRemove,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const meta = PROVIDERS[draft.kind];
@@ -58,7 +58,7 @@ export const AccountForm = memo(function AccountForm({
           </span>
           <IconChevron size={14} className="account-chevron" />
         </button>
-        <button type="button" className="icon-btn icon-btn--danger" title="Remove account" aria-label="Remove account" onClick={() => onRemove(draft.key)}>
+        <button type="button" className="icon-btn icon-btn--danger" title="Remove account" aria-label="Remove account" onClick={() => onRequestRemove(draft)}>
           <IconTrash size={15} />
         </button>
       </div>

@@ -18,9 +18,26 @@ use crate::state::{ConfigStore, PollTrigger, PrState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
-
     let builder = tauri::Builder::default()
+        // Keep one tray process. A second launch brings the existing popover forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            popover::show(app);
+        }))
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .max_file_size(2 * 1024 * 1024)
+                .level(log::LevelFilter::Info)
+                // Keep dependency noise down: suppaftp logs raw PASS at trace.
+                .level_for(
+                    "peekr_lib",
+                    if cfg!(debug_assertions) {
+                        log::LevelFilter::Debug
+                    } else {
+                        log::LevelFilter::Info
+                    },
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(
@@ -77,6 +94,7 @@ pub fn run() {
             commands::open_settings_window,
             commands::hide_settings_window,
             commands::hide_popover,
+            commands::open_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
