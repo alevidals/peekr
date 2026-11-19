@@ -42,7 +42,10 @@ pub async fn check(client: &reqwest::Client, token: Option<&str>) -> AppResult<U
         Ok(release) => release,
         Err(error) if token.is_some() && unauthenticated(&error) => {
             log::debug!("Update check fell back to the configured GitHub token: {error}");
-            http::send_json(client, latest_request(client, token)).await?
+            match http::send_json(client, latest_request(client, token)).await {
+                Ok(release) => release,
+                Err(error) => return Err(explain(error)),
+            }
         }
         Err(error) => return Err(explain(error)),
     };
