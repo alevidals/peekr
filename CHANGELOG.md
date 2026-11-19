@@ -16,6 +16,12 @@
 
 ### Changed
 
+- GitHub review requests come from a single paginated GraphQL search instead of four REST
+  calls per PR, so a poll makes far fewer requests and no longer stops at 100 PRs.
+- Bitbucket fans out with at most 8 requests at once, and a run of failed polls backs off
+  instead of retrying at the normal interval.
+- The webview now has a Content-Security-Policy and no longer exposes the global Tauri
+  object the frontend does not use.
 - The drafts filter uses an eye/eye-off icon and the draft row keeps full contrast; the
   “Draft” badge is the only signal. Truncated titles, branches and repo names show the full
   text on hover, and the header/refresh hit targets are 32px.
@@ -35,8 +41,15 @@
 
 ### Fixed
 
-- The tray icon could turn the opposite colour of the menu bar (black on a dark background
-  or white on a light one).
+- Saving settings could delete the stored token of a removed account before the new config
+  reached the disk, and a keychain error during the v1 migration started the app empty. The
+  config is now written atomically, unreadable files are backed up, and tokens are only
+  removed once the config no longer references them.
+- An account with no token or no repository was skipped silently, so the popover looked
+  empty. It is now reported in the error banner.
+- A PR that GitHub's search dropped for a single poll was announced again when it came back.
+  Each PR is now announced once.
+- Validating a token in settings had no timeout and could spin forever.
 - Polling interval input could not be cleared and accepted out-of-range values.
 - Listeners and timers are cleaned up on unmount, and `Esc` works with an empty list.
 - The PR row shows the update time instead of the creation time.
