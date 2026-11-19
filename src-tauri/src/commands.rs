@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -75,13 +75,19 @@ pub async fn save_config(
     let previous = store.snapshot();
     let mut new_accounts = Vec::with_capacity(accounts.len());
     let mut new_tokens = HashMap::new();
+    let mut tokens_to_write = Vec::new();
+    let mut seen_ids = HashSet::new();
 
+    // Build and validate everything before touching the keychain or the disk.
     for input in accounts {
         // Only reuse ids we know about; anything else is treated as a new account.
         let id = input
             .id
             .filter(|id| previous.config.accounts.iter().any(|a| &a.id == id))
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if !seen_ids.insert(id.clone()) {
+            return Err(AppError::Config("The same account appears twice".into()));
+        }
 
         let account = Account {
             id: id.clone(),
@@ -93,7 +99,7 @@ pub async fn save_config(
 
         let token = match input.token.filter(|t| !t.is_empty()) {
             Some(token) => {
-                secrets::set_token(&id, &token)?;
+                tokens_to_write.push((id.clone(), token.clone()));
                 Some(token)
             }
             None => previous.tokens.get(&id).cloned(),
@@ -104,21 +110,34 @@ pub async fn save_config(
         new_accounts.push(account);
     }
 
-    for old in &previous.config.accounts {
-        if !new_accounts.iter().any(|a| a.id == old.id) {
-            secrets::delete_token(&old.id);
-        }
-    }
-
     let new_config = AppConfig {
+        version: config::CONFIG_VERSION,
         polling_interval_secs: config::clamp_interval(polling_interval_secs),
         accounts: new_accounts,
         theme,
         appearance: appearance.sanitized(),
-        ..AppConfig::default()
     };
+
+    // Tokens first: an orphan keychain entry is harmless, a config pointing at a missing
+    // token is not.
+    for (id, token) in &tokens_to_write {
+        secrets::set_token(id, token)?;
+    }
+
     config::save(&app, &new_config)?;
+    let removed: Vec<String> = previous
+        .config
+        .accounts
+        .iter()
+        .filter(|old| !new_config.accounts.iter().any(|a| a.id == old.id))
+        .map(|old| old.id.clone())
+        .collect();
     store.replace(new_config, new_tokens);
+
+    // Only forget tokens once the saved config no longer references their accounts.
+    for id in removed {
+        secrets::delete_token(&id);
+    }
 
     trigger
         .tx
@@ -152,12 +171,12 @@ pub async fn validate_credentials(
 }
 
 #[tauri::command]
-pub async fn get_pull_requests(state: State<'_, PrState>) -> Result<Vec<PullRequest>, ()> {
+pub async fn get_pull_requests(state: State<'_, PrState>) -> AppResult<Vec<PullRequest>> {
     Ok(state.prs.lock().await.clone())
 }
 
 #[tauri::command]
-pub async fn get_my_pull_requests(state: State<'_, PrState>) -> Result<Vec<PullRequest>, ()> {
+pub async fn get_my_pull_requests(state: State<'_, PrState>) -> AppResult<Vec<PullRequest>> {
     Ok(state.mine.lock().await.clone())
 }
 
