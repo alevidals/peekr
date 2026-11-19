@@ -168,7 +168,8 @@ query($q: String!, $cursor: String) {
       ... on PullRequest {
         number title url isDraft createdAt updatedAt headRefName baseRefName
         repository { nameWithOwner }
-        author { login name avatarUrl }
+        # `author` is an Actor: `name` only exists on User, so it needs a fragment.
+        author { login avatarUrl ... on User { name } }
         # Issue and review comments together, as GitHub's own PR list counts them.
         totalCommentsCount
         comments { totalCount }
@@ -281,7 +282,7 @@ struct GqlRepo {
 #[serde(rename_all = "camelCase")]
 struct GqlAuthor {
     login: String,
-    /// Display name; falls back to the login when the profile does not set one.
+    /// Display name; absent for bots and other actor kinds, and falls back to the login.
     name: Option<String>,
     avatar_url: String,
 }
