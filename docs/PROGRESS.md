@@ -7,9 +7,8 @@
 and left open.
 
 - **Last updated:** 2026-11-19
-- **Status:** 0.1.0 feature-complete and prepared for release. CI/release/security
-  workflows, single instance, file logging and a Vitest suite are in. The first
-  tagged release and cross-platform visual QA remain.
+- **Status:** 0.1.0 released. CI, release and security workflows are validated;
+  cross-platform visual QA remains.
 - **Primary platform:** macOS, with the Windows/Linux code paths kept buildable.
 
 ---
@@ -50,11 +49,11 @@ and left open.
 - [x] CI, release and security workflows plus the version-consistency script
 - [x] Single-instance guard and a rotating application log with an Open logs action
 - [x] Vitest + Testing Library for search, drafts, themes and the confirmation dialog
+- [x] CI on Ubuntu/macOS/Windows, security audits and a published `v0.1.0` release
 - [x] Architecture, user, dependency, release, roadmap and ADR docs
 
 ### In progress
 
-- [ ] First tagged release and a real CI run on a remote
 - [ ] Cross-platform visual QA on real Windows and Linux machines
 - [ ] Codegen evaluation for the IPC types
 
@@ -310,6 +309,32 @@ and left open.
 **Next**
 
 - Push `main`, confirm CI, tag `v0.1.0` and review the draft release.
+
+### 2026-11-19 — Session 10: 0.1.0 released
+
+**Done**
+
+- Pushed `main`; the first CI run found a macOS-only helper that was dead code
+  on Linux and Windows. Gated `hide_now` behind `cfg(target_os = "macos")`.
+- CI is green on Ubuntu, macOS and Windows (frontend tests, Rust gates and the
+  three-platform `cargo check` matrix).
+- Ran the release workflow manually: macOS universal, Linux x64/ARM64 and
+  Windows x64 built successfully.
+- Tagged `v0.1.0`; the tag run produced the draft release with all artifacts and
+  `SHA256SUMS`. Published it as **peekr 0.1.0**.
+- Added the download table and unsigned-build caveat to the README.
+
+**Verified**
+
+- CI: green on `main`.
+- Security: `bun audit` and `cargo audit` passed.
+- Manual release run: all four build jobs succeeded.
+- Release: nine assets, including `SHA256SUMS`.
+
+**Next**
+
+- Cross-platform visual QA on real Windows and Linux machines.
+- Expand frontend tests and decide on IPC codegen.
 
 ---
 

@@ -1,8 +1,8 @@
 # peekr: Implementation roadmap
 
-**Status:** 0.1.0 feature-complete. CI, release and security workflows, single
-instance, file logging and the first frontend test suite are in. First release
-run and cross-platform QA remain.
+**Status:** 0.1.0 is released. CI, release and security workflows, single
+instance, file logging and the first frontend test suite are validated.
+Cross-platform QA and the 0.3 polish work remain.
 **Method:** Incremental milestones with explicit exit criteria. Each milestone
 ends with a runnable app and a review gate. A later milestone does not start
 while an earlier one has an unresolved reliability or security defect.
@@ -50,7 +50,8 @@ commitments.
 **Goal:** Every push is checked and every tag produces artifacts someone else can
 install.
 
-**Status:** Implemented. The first CI run and first tagged release are pending.
+**Status:** Implemented and validated. CI is green, a manual release run built
+all four targets, and `v0.1.0` published with checksums.
 
 | Area             | Deliverable                                                                                              |
 | ---------------- | --------------------------------------------------------------------------------------------------------- |

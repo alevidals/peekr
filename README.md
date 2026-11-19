@@ -49,9 +49,26 @@ approvals, requested changes and open tasks.
 
 ## Status
 
-`0.1.0` is the current development line. The app runs from source today; CI,
-release and security workflows are in place, and the first tagged release is the
-next step. See the [roadmap](docs/ROADMAP.md) for the release plan.
+`0.1.0` is released. The app also runs from source; CI, release and security
+workflows are green. See the [roadmap](docs/ROADMAP.md) for what comes next.
+
+## Download
+
+[v0.1.0 release](https://github.com/alevidals/peekr/releases/tag/v0.1.0):
+
+| Platform        | Portable                                    | Installer                                    |
+| --------------- | ------------------------------------------- | -------------------------------------------- |
+| macOS universal | `peekr_0.1.0_macos-universal_portable.zip`  | `peekr_0.1.0_macos-universal.dmg`            |
+| Windows x64     | `peekr_0.1.0_windows-x64_portable.zip`      | `peekr_0.1.0_windows-x64-setup.exe`          |
+| Linux x64       | `peekr_0.1.0_linux-x64.AppImage`            | `peekr_0.1.0_linux-x64.deb`                  |
+| Linux ARM64     | `peekr_0.1.0_linux-arm64.AppImage`          | `peekr_0.1.0_linux-arm64.deb`                |
+
+Every release includes `SHA256SUMS`.
+
+> **Unsigned builds.** There is no Apple Developer ID or Windows code-signing
+> certificate. macOS is ad-hoc signed and Gatekeeper asks on first launch;
+> Windows shows a SmartScreen warning. [SECURITY.md](SECURITY.md) explains the
+> trade-off, and [docs/RELEASE.md](docs/RELEASE.md) has the exact steps.
 
 ## Run it
 

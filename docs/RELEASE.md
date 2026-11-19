@@ -3,8 +3,9 @@
 peekr ships as a Tauri 2 desktop app. Bundles are produced per operating system;
 Tauri does not cross-compile installers.
 
-**Status:** Implemented. CI, release and security workflows are in place; the
-first tagged release is `v0.1.0`, with unsigned/ad-hoc macOS builds.
+**Status:** Implemented and validated. CI is green, the manual release run
+produced the expected artifacts, and `v0.1.0` is published. macOS builds are
+ad-hoc signed; there is no Developer ID or notarization.
 
 ## Continuous integration
 
