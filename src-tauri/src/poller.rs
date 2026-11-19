@@ -1,7 +1,7 @@
 //! Background loop that polls every configured account and publishes the result
 //! (state, `prs-updated` event, tray badge, notifications).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -76,6 +76,10 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
             wait_for_next_poll(IDLE_WAIT_SECS, &mut rx).await;
             continue;
         }
+
+        // Diagnostic detail: the trigger line above says whether the timer or a manual
+        // refresh started this round.
+        log::debug!("[poll] start: accounts={}", active.accounts.len());
 
         let (results, mine_results) =
             tokio::join!(
@@ -232,6 +236,41 @@ fn collect_batch(
     batch
 }
 
+/// Keys that entered, left or changed between two consecutive polls.
+#[derive(Debug, Default)]
+struct ListDiff {
+    new: Vec<String>,
+    gone: Vec<String>,
+    updated: Vec<String>,
+}
+
+fn list_diff(previous: &[PullRequest], current: &[PullRequest]) -> ListDiff {
+    let before: HashMap<String, &PullRequest> = previous.iter().map(|pr| (pr.key(), pr)).collect();
+    let after: HashSet<String> = current.iter().map(PullRequest::key).collect();
+
+    ListDiff {
+        new: current
+            .iter()
+            .filter(|pr| !before.contains_key(&pr.key()))
+            .map(PullRequest::key)
+            .collect(),
+        gone: previous
+            .iter()
+            .filter(|pr| !after.contains(&pr.key()))
+            .map(PullRequest::key)
+            .collect(),
+        updated: current
+            .iter()
+            .filter(|pr| {
+                before
+                    .get(&pr.key())
+                    .is_some_and(|old| old.updated_on != pr.updated_on)
+            })
+            .map(PullRequest::key)
+            .collect(),
+    }
+}
+
 /// Fresh PRs plus the ones we already knew from sources we could not reach this round.
 fn merge_keeping_stale(
     known: &[PullRequest],
@@ -255,10 +294,21 @@ async fn poll_once(
     let state = app.state::<PrState>();
     let mut current = state.prs.lock().await;
 
+    let fresh = batch.prs.len();
     let mut prs = merge_keeping_stale(&current, batch.prs, |pr| batch.failures.covers(pr));
     prs.sort_by(|a, b| b.created_on.cmp(&a.created_on));
 
     let added = notifier::newly_added(&current, &prs);
+    if log::log_enabled!(log::Level::Debug) {
+        let diff = list_diff(&current, &prs);
+        log::debug!(
+            "[poll] review update: total={} fresh={fresh} new={:?} gone={:?} updated={:?}",
+            prs.len(),
+            diff.new,
+            diff.gone,
+            diff.updated
+        );
+    }
     let to_notify: Vec<&PullRequest> = added
         .iter()
         .copied()
@@ -295,6 +345,7 @@ async fn poll_mine(
     let state = app.state::<PrState>();
     let mut current = state.mine.lock().await;
 
+    let fresh = batch.prs.len();
     let mut prs = merge_keeping_stale(&current, batch.prs, |pr| batch.failures.covers_account(pr));
     prs.sort_by(|a, b| b.updated_on.cmp(&a.updated_on));
 
@@ -302,6 +353,20 @@ async fn poll_mine(
         .into_iter()
         .filter(|(pr, _)| seeded.contains(&pr.account_id))
         .collect();
+    if log::log_enabled!(log::Level::Debug) {
+        let diff = list_diff(&current, &prs);
+        log::debug!(
+            "[poll] mine update: total={} fresh={fresh} new={:?} gone={:?} updated={:?} events={:?}",
+            prs.len(),
+            diff.new,
+            diff.gone,
+            diff.updated,
+            events
+                .iter()
+                .map(|(pr, event)| (pr.key(), format!("{event:?}")))
+                .collect::<Vec<_>>()
+        );
+    }
     seeded.extend(batch.succeeded.iter().cloned());
 
     *current = prs.clone();
@@ -412,6 +477,32 @@ mod tests {
 
         assert!(failures.covers_account(&pr("a", "web", 1)));
         assert!(!failures.covers_account(&pr("b", "api", 1)));
+    }
+
+    fn pr_updated(account: &str, repo: &str, number: u64, updated_on: &str) -> PullRequest {
+        PullRequest {
+            updated_on: updated_on.into(),
+            ..pr(account, repo, number)
+        }
+    }
+
+    #[test]
+    fn diff_reports_new_gone_and_updated_prs() {
+        let previous = vec![
+            pr_updated("a", "web", 1, "t1"),
+            pr_updated("a", "web", 2, "t1"),
+            pr_updated("a", "web", 3, "t1"),
+        ];
+        let current = vec![
+            pr_updated("a", "web", 1, "t1"),
+            pr_updated("a", "web", 2, "t2"),
+            pr_updated("a", "web", 4, "t1"),
+        ];
+
+        let diff = list_diff(&previous, &current);
+        assert_eq!(diff.new, vec!["a/web#4"]);
+        assert_eq!(diff.gone, vec!["a/web#3"]);
+        assert_eq!(diff.updated, vec!["a/web#2"]);
     }
 
     #[test]
