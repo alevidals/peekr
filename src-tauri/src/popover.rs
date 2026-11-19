@@ -149,6 +149,7 @@ pub fn setup(app: &App) {
 }
 
 /// Hides immediately, skipping the exit animation (used when the user leaves the Space).
+#[cfg(target_os = "macos")]
 fn hide_now(window: &WebviewWindow) {
     let app = window.app_handle();
     let state = app.state::<HideState>();
