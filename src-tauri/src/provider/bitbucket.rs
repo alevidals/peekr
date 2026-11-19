@@ -61,6 +61,19 @@ impl Bitbucket {
         Ok(request.send().await?)
     }
 
+    /// JSON call that keeps the slot while the transient-error retry runs.
+    async fn send_json<T: serde::de::DeserializeOwned>(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> AppResult<T> {
+        let _permit = self
+            .permits
+            .acquire()
+            .await
+            .expect("the provider semaphore is never closed");
+        http::send_json(&self.client, request).await
+    }
+
     async fn user_id(&self) -> AppResult<&str> {
         self.user_id
             .get_or_try_init(|| async {
@@ -68,7 +81,7 @@ impl Bitbucket {
                     .client
                     .get(format!("{API}/user"))
                     .bearer_auth(&self.token);
-                let user: BitbucketUser = http::json(self.send(request).await?).await?;
+                let user: BitbucketUser = self.send_json(request).await?;
                 user.account_id.ok_or_else(|| {
                     AppError::Provider("Missing account_id in /user response".into())
                 })
@@ -78,8 +91,8 @@ impl Bitbucket {
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> AppResult<T> {
-        let request = self.client.get(url).bearer_auth(&self.token);
-        http::json(self.send(request).await?).await
+        self.send_json(self.client.get(url).bearer_auth(&self.token))
+            .await
     }
 
     /// Pipeline/build status of the PR's head commit. Best effort: a token without the
@@ -123,6 +136,9 @@ impl Bitbucket {
         let mut raws = Vec::new();
         let mut use_q = self.use_q_filter.load(Ordering::Relaxed);
         let workspace = &self.workspace;
+        // Same identifier GitHub uses (`owner/name`), so the list and notifications match.
+        let full_repo = format!("{workspace}/{repo}");
+        let repo_id = full_repo.as_str();
 
         let mut url = Some(if use_q {
             // state="OPEN" must be inside q — Bitbucket ignores a standalone state= when q is present.
@@ -180,7 +196,7 @@ impl Bitbucket {
                 };
                 let merge =
                     (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
-                let mut pr = raw.into_pr(&self.account_id, repo);
+                let mut pr = raw.into_pr(&self.account_id, repo_id);
                 pr.ci_status = ci_status;
                 pr.merge = merge;
                 pr
@@ -247,8 +263,9 @@ impl Bitbucket {
             match result {
                 Ok(repo_prs) => prs.extend(repo_prs),
                 Err(e) => {
-                    log::warn!("Failed to fetch PRs for repo {repo}: {e}");
-                    failed_repos.push((repo, e));
+                    let full_repo = format!("{}/{repo}", self.workspace);
+                    log::warn!("Failed to fetch PRs for repo {full_repo}: {}", e.detail());
+                    failed_repos.push((full_repo, e));
                 }
             }
         }

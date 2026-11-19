@@ -6,7 +6,9 @@
 
 use std::time::Duration;
 
+use reqwest::{Client, RequestBuilder};
 use serde::de::DeserializeOwned;
+use tokio::time::sleep;
 
 use crate::error::{AppError, AppResult};
 
@@ -15,6 +17,8 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 pub const USER_AGENT: &str = "peekr";
 /// Enough to identify the problem without dumping a whole HTML error page.
 const BODY_SNIPPET: usize = 200;
+/// One retry is enough to ride out a dropped keep-alive connection or a wake from sleep.
+const RETRY_DELAY: Duration = Duration::from_millis(400);
 
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
@@ -22,6 +26,37 @@ pub fn client() -> reqwest::Client {
         .user_agent(USER_AGENT)
         .build()
         .expect("failed to build the HTTP client")
+}
+
+/// Sends a request and decodes it, retrying once when the transport fails or the service
+/// answers 502/503/504.
+pub async fn send_json<T: DeserializeOwned>(
+    client: &Client,
+    request: RequestBuilder,
+) -> AppResult<T> {
+    let request = request.build()?;
+    let retry = request.try_clone();
+
+    match json(client.execute(request).await?).await {
+        Ok(value) => Ok(value),
+        Err(error) if retryable(&error) => match retry {
+            Some(request) => {
+                log::debug!("Retrying after a transient request error: {error}");
+                sleep(RETRY_DELAY).await;
+                json(client.execute(request).await?).await
+            }
+            None => Err(error),
+        },
+        Err(error) => Err(error),
+    }
+}
+
+fn retryable(error: &AppError) -> bool {
+    match error {
+        AppError::Http(_) => true,
+        AppError::HttpStatus { status, .. } => matches!(status, 502..=504),
+        _ => false,
+    }
 }
 
 /// Decodes a successful response. On failure it keeps the status, the URL and the first
@@ -56,6 +91,21 @@ fn first_line(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retries_transport_and_gateway_errors_only() {
+        let status = |status| AppError::HttpStatus {
+            status,
+            url: String::new(),
+            message: String::new(),
+        };
+        assert!(retryable(&status(502)));
+        assert!(retryable(&status(503)));
+        assert!(retryable(&status(504)));
+        assert!(!retryable(&status(500)));
+        assert!(!retryable(&status(401)));
+        assert!(!retryable(&AppError::Provider("x".into())));
+    }
 
     #[test]
     fn keeps_the_first_meaningful_line_of_an_error_body() {

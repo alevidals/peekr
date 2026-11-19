@@ -23,7 +23,8 @@ use crate::{
 pub(crate) const MAX_CONCURRENCY: usize = 8;
 
 /// Outcome of polling one account. Repos that failed are reported separately so that one bad
-/// repo neither hides the others nor makes its previously known PRs look "closed".
+/// repo neither hides the others nor makes its previously known PRs look "closed". The repo
+/// identifier is the same one carried by [`PullRequest::repo`].
 pub struct FetchReport {
     pub prs: Vec<PullRequest>,
     pub failed_repos: Vec<(String, AppError)>,

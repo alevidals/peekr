@@ -70,9 +70,7 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
         if active.accounts.is_empty() {
             clear_prs(&app).await;
             clear_mine(&app).await;
-            if !active.problems.is_empty() {
-                let _ = app.emit("poll-error", active.problems.join("\n"));
-            }
+            emit_errors(&app, active.problems.clone());
             wait_for_next_poll(IDLE_WAIT_SECS, &mut rx).await;
             continue;
         }
@@ -97,8 +95,10 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
         let failed_round =
             results.iter().any(|(_, r)| r.is_err()) || mine_results.iter().any(|(_, r)| r.is_err());
 
-        poll_once(&app, results, &active.problems, &mut seeded, &mut notified).await;
-        poll_mine(&app, mine_results, &mut seeded_mine).await;
+        let mut errors =
+            poll_once(&app, results, &active.problems, &mut seeded, &mut notified).await;
+        errors.extend(poll_mine(&app, mine_results, &mut seeded_mine).await);
+        emit_errors(&app, errors);
 
         failures = if failed_round {
             (failures + 1).min(MAX_BACKOFF)
@@ -210,11 +210,9 @@ fn collect_batch(
                 batch.prs.extend(report.prs);
                 batch.succeeded.push(id.clone());
                 for (repo, e) in report.failed_repos {
-                    batch.errors.push(format!(
-                        "{}{}/{repo}: {e}",
-                        scope.error_prefix(),
-                        account.account.workspace
-                    ));
+                    batch
+                        .errors
+                        .push(format!("{}{repo}: {}", scope.error_prefix(), e.detail()));
                     if scope.keeps_repo_failures() {
                         batch.failures.add_repo(id, &repo);
                     }
@@ -222,13 +220,17 @@ fn collect_batch(
             }
             Err(e) => {
                 log::error!(
-                    "Polling {} for {} failed: {e}",
+                    "Polling {} for {} failed: {}",
                     scope.log_label(),
-                    account.label()
+                    account.label(),
+                    e.detail()
                 );
-                batch
-                    .errors
-                    .push(format!("{}{}: {e}", scope.error_prefix(), account.label()));
+                batch.errors.push(format!(
+                    "{}{}: {}",
+                    scope.error_prefix(),
+                    account.label(),
+                    e.detail()
+                ));
                 batch.failures.add_account(id);
             }
         }
@@ -279,6 +281,10 @@ fn merge_keeping_stale(
 ) -> Vec<PullRequest> {
     let mut merged = fresh;
     merged.extend(known.iter().filter(|pr| keep(pr)).cloned());
+    // Two accounts configured for the same workspace see the same PR under different ids.
+    // Keep one so the list, the badge and the notifications agree.
+    let mut seen = HashSet::new();
+    merged.retain(|pr| seen.insert((pr.provider, pr.repo.clone(), pr.number)));
     merged
 }
 
@@ -288,7 +294,7 @@ async fn poll_once(
     problems: &[String],
     seeded: &mut HashSet<String>,
     notified: &mut HashSet<String>,
-) {
+) -> Vec<String> {
     let batch = collect_batch(results, Scope::Reviews);
 
     let state = app.state::<PrState>();
@@ -328,9 +334,7 @@ async fn poll_once(
 
     let mut errors = batch.errors;
     errors.extend_from_slice(problems);
-    if !errors.is_empty() {
-        let _ = app.emit("poll-error", errors.join("\n"));
-    }
+    errors
 }
 
 /// Same as [`poll_once`] for the user's own PRs: no badge, and notifications only for
@@ -339,7 +343,7 @@ async fn poll_mine(
     app: &AppHandle,
     results: Vec<(&ActiveAccount, AppResult<FetchReport>)>,
     seeded: &mut HashSet<String>,
-) {
+) -> Vec<String> {
     let batch = collect_batch(results, Scope::Mine);
 
     let state = app.state::<PrState>();
@@ -374,9 +378,7 @@ async fn poll_mine(
 
     notifier::notify_my_pr_events(app, &events);
     let _ = app.emit("my-prs-updated", &prs);
-    if !batch.errors.is_empty() {
-        let _ = app.emit("poll-error", batch.errors.join("\n"));
-    }
+    batch.errors
 }
 
 async fn clear_mine(app: &AppHandle) {
@@ -405,6 +407,16 @@ async fn clear_prs(app: &AppHandle) {
 fn emit_and_badge(app: &AppHandle, prs: &[PullRequest]) {
     let _ = app.emit("prs-updated", prs);
     tray::update_badge(app, prs.len() as u32);
+}
+
+/// Publishes every problem of a round once. Two accounts for the same workspace produce the
+/// same message, and both scopes can fail for the same reason.
+fn emit_errors(app: &AppHandle, mut errors: Vec<String>) {
+    let mut seen = HashSet::new();
+    errors.retain(|error| seen.insert(error.clone()));
+    if !errors.is_empty() {
+        let _ = app.emit("poll-error", errors.join("\n"));
+    }
 }
 
 /// Multiplies the configured interval after consecutive failed polls, so a service that is
@@ -503,6 +515,16 @@ mod tests {
         assert_eq!(diff.new, vec!["a/web#4"]);
         assert_eq!(diff.gone, vec!["a/web#3"]);
         assert_eq!(diff.updated, vec!["a/web#2"]);
+    }
+
+    #[test]
+    fn merge_dedupes_the_same_pr_from_two_accounts() {
+        let known = vec![pr("a", "web", 2)];
+        let fresh = vec![pr("a", "web", 1), pr("b", "web", 1)];
+
+        let merged = merge_keeping_stale(&known, fresh, |pr| pr.number == 2);
+        let keys: Vec<_> = merged.iter().map(PullRequest::key).collect();
+        assert_eq!(keys, vec!["a/web#1", "a/web#2"]);
     }
 
     #[test]

@@ -77,6 +77,7 @@ pub async fn save_config(
     let mut new_tokens = HashMap::new();
     let mut tokens_to_write = Vec::new();
     let mut seen_ids = HashSet::new();
+    let mut seen_accounts = HashSet::new();
 
     // Build and validate everything before touching the keychain or the disk.
     for input in accounts {
@@ -96,6 +97,12 @@ pub async fn save_config(
             repos: config::clean_repos(input.repos),
         };
         config::validate_account(&account)?;
+        // Two accounts for the same workspace and provider only duplicate every PR.
+        if !seen_accounts.insert((account.kind, account.workspace.to_lowercase())) {
+            return Err(AppError::Config(
+                "This workspace is already configured for this provider".into(),
+            ));
+        }
 
         let token = match input.token.filter(|t| !t.is_empty()) {
             Some(token) => {

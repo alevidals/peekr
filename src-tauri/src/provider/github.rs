@@ -67,7 +67,7 @@ impl Github {
         self.login
             .get_or_try_init(|| async {
                 let user: GithubUser =
-                    http::json(self.get(&format!("{API}/user")).send().await?).await?;
+                    http::send_json(&self.client, self.get(&format!("{API}/user"))).await?;
                 Ok::<_, AppError>(user.login)
             })
             .await
@@ -84,7 +84,7 @@ impl Github {
                 "query": SEARCH_QUERY,
                 "variables": { "q": query, "cursor": cursor },
             }));
-            let data = graphql_data(http::json(request.send().await?).await?)?;
+            let data = graphql_data(http::send_json(&self.client, request).await?)?;
             let GraphqlSearch {
                 page_info,
                 nodes: page,
@@ -168,7 +168,7 @@ query($q: String!, $cursor: String) {
       ... on PullRequest {
         number title url isDraft createdAt updatedAt headRefName baseRefName
         repository { nameWithOwner }
-        author { login avatarUrl }
+        author { login name avatarUrl }
         # Issue and review comments together, as GitHub's own PR list counts them.
         totalCommentsCount
         comments { totalCount }
@@ -281,6 +281,8 @@ struct GqlRepo {
 #[serde(rename_all = "camelCase")]
 struct GqlAuthor {
     login: String,
+    /// Display name; falls back to the login when the profile does not set one.
+    name: Option<String>,
     avatar_url: String,
 }
 
@@ -429,7 +431,11 @@ impl GqlPull {
         let (author, avatar) = self
             .author
             .map_or(("Unknown".to_string(), String::new()), |a| {
-                (a.login, a.avatar_url)
+                let name = a
+                    .name
+                    .filter(|name| !name.trim().is_empty())
+                    .unwrap_or(a.login);
+                (name, a.avatar_url)
             });
         PullRequest {
             provider: ProviderKind::Github,
@@ -484,7 +490,7 @@ mod tests {
         let json = format!(
             r#"{{"number":3,"title":"t","url":"u","isDraft":false,"createdAt":"a","updatedAt":"b",
                 "headRefName":"f","baseRefName":"main","repository":{{"nameWithOwner":"acme/web"}},
-                "author":{{"login":"me","avatarUrl":"av"}},
+                "author":{{"login":"me","name":"Me","avatarUrl":"av"}},
                 "totalCommentsCount":9,"comments":{{"totalCount":4}},
                 "reviewDecision":{},"mergeable":"MERGEABLE","mergeStateStatus":"{merge_state}",
                 "latestOpinionatedReviews":{{"nodes":[{{"state":"APPROVED"}},{{"state":"CHANGES_REQUESTED"}}]}},
@@ -515,6 +521,20 @@ mod tests {
         let mut pull = gql_pull("CLEAN", None, PASSING);
         pull.total_comments_count = None;
         assert_eq!(pull.into_pr("acc", true).comment_count, 4);
+    }
+
+    #[test]
+    fn author_uses_the_display_name_and_falls_back_to_the_login() {
+        let pr = gql_pull("CLEAN", None, PASSING).into_pr("acc", true);
+        assert_eq!(pr.author_display_name, "Me");
+
+        let mut pull = gql_pull("CLEAN", None, PASSING);
+        pull.author.as_mut().unwrap().name = None;
+        assert_eq!(pull.into_pr("acc", true).author_display_name, "me");
+
+        let mut pull = gql_pull("CLEAN", None, PASSING);
+        pull.author.as_mut().unwrap().name = Some("  ".into());
+        assert_eq!(pull.into_pr("acc", true).author_display_name, "me");
     }
 
     #[test]
