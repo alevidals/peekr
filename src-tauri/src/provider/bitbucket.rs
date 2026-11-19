@@ -124,7 +124,7 @@ impl Bitbucket {
         });
 
         while let Some(next_url) = url {
-            log::info!("GET {next_url}");
+            log::debug!("GET {next_url}");
             let response = self
                 .client
                 .get(&next_url)
@@ -132,7 +132,7 @@ impl Bitbucket {
                 .send()
                 .await?;
             let status = response.status();
-            log::info!("  → HTTP {status}");
+            log::debug!("  → HTTP {status}");
 
             if use_q && status == 400 {
                 log::info!(
@@ -408,8 +408,18 @@ impl MergeCheck {
             ),
             "in_progress_builds" => (MergeState::Waiting, "Pipeline running".to_string()),
             "failed_builds" => (MergeState::Blocked, "Pipeline failed".to_string()),
-            other => (MergeState::Blocked, other.replace('_', " ")),
+            other => (MergeState::Blocked, capitalized(other)),
         }
+    }
+}
+
+/// `minimum_approvals` → `Minimum approvals`, for check kinds we do not know by name.
+fn capitalized(kind: &str) -> String {
+    let spaced = kind.replace('_', " ");
+    let mut chars = spaced.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => spaced,
     }
 }
 
@@ -620,6 +630,12 @@ mod tests {
         assert_eq!(pr.source_branch, "feat");
         assert_eq!(pr.author_avatar_url, "http://a/x.png");
         assert_eq!(pr.approvals, 1);
+    }
+
+    #[test]
+    fn unknown_check_kinds_are_readable() {
+        assert_eq!(capitalized("minimum_approvals"), "Minimum approvals");
+        assert_eq!(capitalized(""), "");
     }
 
     #[test]

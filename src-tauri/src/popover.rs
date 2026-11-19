@@ -7,7 +7,8 @@
 //! newer attempt (or focus gain) happened in the meantime.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use tauri::{App, AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
 use tauri_plugin_positioner::{Position, WindowExt};
@@ -91,11 +92,11 @@ pub struct HideState {
     focused_at: AtomicU64,
 }
 
+/// Milliseconds since the first call. Monotonic, so a clock change cannot break the guards
+/// that compare two of these timestamps.
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    static START: OnceLock<Instant> = OnceLock::new();
+    START.get_or_init(Instant::now).elapsed().as_millis() as u64
 }
 
 impl HideState {
