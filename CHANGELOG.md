@@ -50,6 +50,8 @@
 - A PR that GitHub's search dropped for a single poll was announced again when it came back.
   Each PR is now announced once.
 - Validating a token in settings had no timeout and could spin forever.
+- GitHub PRs count review comments again: the bubble uses `totalCommentsCount`, which adds
+  issue and review comments as GitHub's own list does.
 - Polling interval input could not be cleared and accepted out-of-range values.
 - Listeners and timers are cleaned up on unmount, and `Esc` works with an empty list.
 - The PR row shows the update time instead of the creation time.

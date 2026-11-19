@@ -169,17 +169,21 @@ query($q: String!, $cursor: String) {
         number title url isDraft createdAt updatedAt headRefName baseRefName
         repository { nameWithOwner }
         author { login avatarUrl }
+        # Issue and review comments together, as GitHub's own PR list counts them.
+        totalCommentsCount
         comments { totalCount }
         reviewDecision
         mergeable
         mergeStateStatus
-        latestOpinionatedReviews(first: 50) { nodes { state } }
+        # Approvals above 20 and checks above 20 are rare, and every nested node costs
+        # rate-limit points: the rollup state still reports the aggregate.
+        latestOpinionatedReviews(first: 20) { nodes { state } }
         commits(last: 1) {
           nodes {
             commit {
               statusCheckRollup {
                 state
-                contexts(first: 100) {
+                contexts(first: 20) {
                   nodes {
                     __typename
                     ... on CheckRun { name status conclusion }
@@ -257,6 +261,8 @@ struct GqlPull {
     base_ref_name: String,
     repository: GqlRepo,
     author: Option<GqlAuthor>,
+    /// Issue + review comments; null when GitHub cannot compute it.
+    total_comments_count: Option<u32>,
     comments: GqlCount,
     review_decision: Option<String>,
     mergeable: String,
@@ -437,7 +443,9 @@ impl GqlPull {
             destination_branch: self.base_ref_name,
             created_on: self.created_at,
             updated_on: self.updated_at,
-            comment_count: self.comments.total_count,
+            comment_count: self
+                .total_comments_count
+                .unwrap_or(self.comments.total_count),
             html_url: self.url,
             draft: self.is_draft,
             approvals,
@@ -476,7 +484,8 @@ mod tests {
         let json = format!(
             r#"{{"number":3,"title":"t","url":"u","isDraft":false,"createdAt":"a","updatedAt":"b",
                 "headRefName":"f","baseRefName":"main","repository":{{"nameWithOwner":"acme/web"}},
-                "author":{{"login":"me","avatarUrl":"av"}},"comments":{{"totalCount":4}},
+                "author":{{"login":"me","avatarUrl":"av"}},
+                "totalCommentsCount":9,"comments":{{"totalCount":4}},
                 "reviewDecision":{},"mergeable":"MERGEABLE","mergeStateStatus":"{merge_state}",
                 "latestOpinionatedReviews":{{"nodes":[{{"state":"APPROVED"}},{{"state":"CHANGES_REQUESTED"}}]}},
                 "commits":{{"nodes":[{{"commit":{{"statusCheckRollup":{rollup}}}}}]}}}}"#,
@@ -497,8 +506,15 @@ mod tests {
         let merge = pr.merge.clone().unwrap();
         assert!(merge.is_ready() && merge.blockers.is_empty());
         assert_eq!(pr.key(), "acc/acme/web#3");
-        assert_eq!((pr.approvals, pr.comment_count), (1, 4));
+        assert_eq!((pr.approvals, pr.comment_count), (1, 9));
         assert_eq!(pr.ci_status, Some(CiStatus::Success));
+    }
+
+    #[test]
+    fn comment_count_falls_back_to_issue_comments() {
+        let mut pull = gql_pull("CLEAN", None, PASSING);
+        pull.total_comments_count = None;
+        assert_eq!(pull.into_pr("acc", true).comment_count, 4);
     }
 
     #[test]
