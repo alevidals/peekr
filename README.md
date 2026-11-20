@@ -11,12 +11,15 @@
 
 <p align="center">
   <a href="https://github.com/alevidals/peekr/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/alevidals/peekr/ci.yml?branch=main&style=flat-square&label=ci" /></a>
+  <a href="https://alevidals.github.io/peekr/"><img alt="Website" src="https://img.shields.io/badge/website-peekr-4f8cff?style=flat-square" /></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" />
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-64748b?style=flat-square" />
   <img alt="Stack" src="https://img.shields.io/badge/stack-Tauri%202%20%C2%B7%20React%2019-4f8cff?style=flat-square" />
 </p>
 
 <p align="center">
+  <a href="https://alevidals.github.io/peekr/">Website</a> ·
+  <a href="https://github.com/alevidals/peekr/releases/latest">Download</a> ·
   <a href="docs/USER_GUIDE.md">User guide</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
