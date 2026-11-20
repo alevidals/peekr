@@ -1,6 +1,6 @@
 [package]
 name = "peekr"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tray app to keep track of pull requests pending your review"
 authors = ["peekr"]
 edition = "2021"

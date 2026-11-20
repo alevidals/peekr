@@ -440,6 +440,27 @@ and left open.
 
 - Configure GitHub Pages and the `v*` tag rule before the web workflow deploys.
 
+### 2026-11-20 — Session 15: Daily log rotation
+
+**Done**
+
+- Replaced `tauri-plugin-log` with `tracing`, `tracing-subscriber` and `tracing-appender`.
+- One file per UTC day (`peekr.log.YYYY-MM-DD`); seven files retained, with no per-file size cap
+  and no pruning by total size.
+- Panic hook, stderr and file layers, `EnvFilter` (debug for `peekr_lib` in development) and the
+  non-blocking guard in managed state.
+- Updated the user guide, architecture, dependencies and README.
+
+**Verified**
+
+- `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` and
+  `bun run check`.
+- A dev run created `peekr.log.2026-11-20`; a nine-file fixture was pruned to seven on startup.
+
+**Next**
+
+- None for this change.
+
 ---
 
 ## Verification

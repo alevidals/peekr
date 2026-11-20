@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-20
+
 ### Added
 
 - Added the Astro landing page under `web/`, with a distinct editorial design, release-aware
@@ -24,6 +26,8 @@
   quieter hierarchy.
 - Merge verdicts are short (`Ready`, `Waiting`, `Blocked`); the blockers stay in the tooltip.
 - The wordmark is set in Instrument Serif and branch names in IBM Plex Mono.
+- Settings carries the same wordmark and accent language: serif `peekr` mark, accent bar on the
+  active section and filled count pills.
 
 ## 0.1.0 — 2026-11-19
 
