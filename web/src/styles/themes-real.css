@@ -13,7 +13,7 @@
 .theme-shot-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--paper-strong);
   box-shadow: 0 8px 16px -14px var(--shadow-float);
 }
