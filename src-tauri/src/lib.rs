@@ -3,6 +3,7 @@ mod config;
 mod domain;
 mod error;
 mod http;
+mod logging;
 mod notifier;
 mod poller;
 mod popover;
@@ -24,21 +25,6 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             popover::show(app);
         }))
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .max_file_size(2 * 1024 * 1024)
-                .level(log::LevelFilter::Info)
-                // Keep dependency noise down: suppaftp logs raw PASS at trace.
-                .level_for(
-                    "peekr_lib",
-                    if cfg!(debug_assertions) {
-                        log::LevelFilter::Debug
-                    } else {
-                        log::LevelFilter::Info
-                    },
-                )
-                .build(),
-        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(
@@ -58,6 +44,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            // Logging first: config loading already reports through the log bridge.
+            let log_guard = logging::init(app.handle())?;
+            app.manage(logging::LogGuard::new(log_guard));
+
             let store = ConfigStore::load(app.handle()).unwrap_or_else(|e| {
                 log::error!("[config] failed to load, starting empty: {e}");
                 ConfigStore::default()
@@ -74,6 +64,8 @@ pub fn run() {
             let (tx, rx) = watch::channel(());
             app.manage(PollTrigger { tx });
             tauri::async_runtime::spawn(poller::run(app.handle().clone(), rx));
+
+            tracing::info!(version = env!("CARGO_PKG_VERSION"), "peekr starting");
 
             Ok(())
         })

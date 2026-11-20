@@ -54,7 +54,9 @@ windows.
 | `tauri-plugin-positioner`   | 2.4.0     | Position the popover under tray  | MIT/Apache-2.0 | `tray-icon` feature                                                   |
 | `tauri-plugin-autostart`    | 2.7.0     | Launch at login                  | MIT/Apache-2.0 | LaunchAgent on macOS, registry on Windows, XDG entry on Linux          |
 | `tauri-plugin-single-instance` | 2.5.5  | Keep one tray process            | MIT/Apache-2.0 | A second launch shows the existing popover                            |
-| `tauri-plugin-log`          | 2.10.2    | File and stdout logging          | MIT/Apache-2.0 | Rotates one 2 MiB file in the platform log directory                  |
+| `tracing`                   | 0.1.44    | Structured logging               | MIT            | Bridges the existing `log` records                                     |
+| `tracing-subscriber`        | 0.3.23    | Filtering and output layers      | MIT            | `env-filter`; file and stderr layers                                   |
+| `tracing-appender`          | 0.2.5     | Daily rolling file writer        | MIT            | `Rotation::DAILY`, keeps 7 files, no per-file size cap                 |
 | `tokio`                     | 1.54.1    | Async runtime                    | MIT            | Features: rt, rt-multi-thread, time, sync, macros                     |
 | `reqwest`                   | 0.12.28   | Bitbucket REST and GitHub GraphQL| MIT/Apache-2.0 | `json` + `rustls-tls`, default features off                            |
 | `serde`                     | 1.0.229   | Serialization                    | MIT/Apache-2.0 | derive                                                                |

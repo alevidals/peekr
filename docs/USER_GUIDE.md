@@ -228,7 +228,7 @@ Themes are applied to both windows and persist in `config.json`.
 | ------------ | ------------------------------------------------------------------------ |
 | Config       | The platform app-config directory for `com.alevidals.peekr`/`config.json` |
 | Tokens       | The OS credential store, service `peekr`, one entry per account          |
-| Logs         | The platform log directory for `com.alevidals.peekr` (2 MiB rotating file) |
+| Logs         | The platform log directory for `com.alevidals.peekr` (one file per UTC day, last 7 kept) |
 | Window state | Not persisted yet; the popover is positioned under the tray on each open  |
 
 `config.json` contains the schema version, polling interval, accounts, theme and
@@ -267,9 +267,10 @@ marker, not a count.
 ### Diagnostics
 
 Open **Settings → About → Open logs** to reveal the application log in Finder,
-Explorer or the system file manager. The log goes to stdout in development and to
-the platform log directory in a packaged build. It rotates at 2 MiB and does not
-contain tokens.
+Explorer or the system file manager. The log goes to stderr in development and to
+the platform log directory in a packaged build. It writes one file per UTC day as
+`peekr.log.YYYY-MM-DD` and keeps the seven most recent; there is no per-file size
+cap. It does not contain tokens.
 
 If a notification does not appear, check the OS permission for peekr (or Terminal
 in development) and the log for a `[notification] failed` line.

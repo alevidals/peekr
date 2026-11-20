@@ -91,8 +91,9 @@ These are not architectural blockers, but they are not planned surface either.
   runtime; the UI runs in the platform webview.
 - `tauri-plugin-single-instance` enforces one tray process. Launching peekr again
   moves the existing popover under the tray and focuses it.
-- `tauri-plugin-log` writes to stdout and to one rotating file (2 MiB) in the
-  platform log directory; Settings → General → **Open logs** reveals it.
+- `tracing` writes to stderr and to one file per UTC day (`peekr.log.YYYY-MM-DD`)
+  in the platform log directory; the seven most recent files are kept. Settings →
+  About → **Open logs** reveals it.
 - Two windows share one Vite bundle. `App.tsx` reads the window label and
   lazy-loads `PopoverWindow` or `SettingsWindow`, so the popover does not ship the
   settings code.
@@ -501,7 +502,7 @@ manual update check.
   config.json.tmp    # transient atomic-write file
 
 <platform log dir>/com.alevidals.peekr/
-  peekr.log          # stdout plus rotating application log
+  peekr.log.YYYY-MM-DD  # one file per UTC day; the seven most recent are kept
 ```
 
 - `config.json` is written through a sibling temp file, `sync_all`, then rename.

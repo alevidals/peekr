@@ -17,6 +17,8 @@
 
 ### Changed
 
+- Logs now rotate daily as `peekr.log.YYYY-MM-DD` and keep the seven most recent files. The
+  single 2 MiB log and its size cap are gone.
 - Popover rows use two lines: avatar, title with the PR number, author or merge verdict, branch,
   CI, approvals, comments and age. Tabs, counts, group headers and the footer follow the same
   quieter hierarchy.
