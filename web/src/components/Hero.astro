@@ -1,5 +1,4 @@
 ---
-import MockApp from "./MockApp.astro";
 import { REPO_URL } from "../lib/releases";
 
 interface Props {
@@ -7,6 +6,9 @@ interface Props {
 }
 
 const { version } = Astro.props;
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
 ---
 
 <section class="hero" id="product">
@@ -35,6 +37,19 @@ const { version } = Astro.props;
       </ul>
     </div>
 
-    <MockApp />
+    <div class="hero-stage">
+      <div class="hero-shot-wrap">
+        <img
+          class="hero-shot"
+          src={`${base}product/theme-system.png?v=1`}
+          width="380"
+          height="618"
+          alt="The peekr popover listing review requests from GitHub and Bitbucket, grouped by repository with checks, approvals and comments."
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </div>
+    </div>
   </div>
 </section>

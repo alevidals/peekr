@@ -1,0 +1,27 @@
+/* Real popover capture in the v1 hero: the app window at its own 380px width.
+ * The capture loses the window's 1px bottom border, so the wrapper draws it. */
+
+.hero-shot-wrap {
+  position: relative;
+  width: min(380px, 100%);
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow: 0 8px 16px var(--shadow-float);
+}
+
+.hero-shot-wrap::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: #d9dada;
+  pointer-events: none;
+}
+
+.hero-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+}

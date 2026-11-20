@@ -1,0 +1,102 @@
+/* Site header. */
+
+.site-head {
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  min-height: 72px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nav-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  transition: color 0.18s var(--ease);
+}
+
+.nav-links a:hover,
+.nav-links a:active {
+  color: var(--ink);
+}
+
+.nav-links a[href="#download"] {
+  color: var(--ink);
+}
+
+.nav-menu {
+  display: none;
+  margin-left: auto;
+}
+
+.nav-menu summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.nav-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-menu[open] summary {
+  border-color: var(--ink);
+}
+
+.nav-menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  display: grid;
+  min-width: 12rem;
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--paper-strong);
+  box-shadow: 0 1px 2px var(--shadow-float);
+}
+
+.nav-menu-panel a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.nav-menu-panel a:hover,
+.nav-menu-panel a:active {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .nav-links {
+    display: none;
+  }
+
+  .nav-menu {
+    display: block;
+  }
+}

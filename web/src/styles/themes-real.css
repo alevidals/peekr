@@ -1,0 +1,74 @@
+/* Real theme previews inside the v1 "Dress for the room." section. */
+
+.theme-grid--shots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px var(--gap-column);
+}
+
+.theme-shot {
+  margin: 0;
+}
+
+.theme-shot-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--paper-strong);
+  box-shadow: 0 8px 16px -14px var(--shadow-float);
+}
+
+.theme-shot-frame::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: #d9dada;
+  pointer-events: none;
+}
+
+.theme-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.theme-shot figcaption {
+  display: grid;
+  gap: 2px;
+  padding-top: 12px;
+}
+
+.theme-shot-name {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.theme-shot-desc {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+@media (max-width: 1040px) {
+  .theme-grid--shots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .theme-grid--shots {
+    gap: 24px 12px;
+  }
+
+  .theme-shot-name {
+    font-size: 12px;
+  }
+
+  .theme-shot-desc {
+    font-size: 11px;
+  }
+}

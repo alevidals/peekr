@@ -1,14 +1,20 @@
 ---
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
 const themes = [
-  { id: "system", name: "System" },
-  { id: "one-dark", name: "One Dark" },
-  { id: "gruvbox-dark", name: "Gruvbox Dark" },
-  { id: "gruvbox-light", name: "Gruvbox Light" },
-  { id: "nord", name: "Nord" },
-  { id: "dracula", name: "Dracula" },
-  { id: "solarized-light", name: "Solarized Light" },
-  { id: "tokyo-night", name: "Tokyo Night" },
-  { id: "catppuccin-mocha", name: "Catppuccin Mocha" },
+  { name: "System", desc: "Follows the system", file: "theme-system-card.png" },
+  { name: "Dark", desc: "Peekr dark", file: "theme-dark.png" },
+  { name: "Light", desc: "Peekr light", file: "theme-light.png" },
+  { name: "One Dark", desc: "Atom’s classic", file: "theme-one-dark.png" },
+  { name: "Gruvbox Dark", desc: "Warm and retro", file: "theme-gruvbox-dark.png" },
+  { name: "Gruvbox Light", desc: "Warm paper", file: "theme-gruvbox-light.png" },
+  { name: "Nord", desc: "Arctic blues", file: "theme-nord.png" },
+  { name: "Dracula", desc: "Vivid purple", file: "theme-dracula.png" },
+  { name: "Solarized Light", desc: "Precision light", file: "theme-solarized-light.png" },
+  { name: "Tokyo Night", desc: "Neon city", file: "theme-tokyo-night.png" },
+  { name: "Catppuccin Mocha", desc: "Soft pastels", file: "theme-catppuccin-mocha.png" },
 ];
 ---
 
@@ -20,24 +26,32 @@ const themes = [
       </div>
       <div class="section-side">
         <p class="section-lead">
-          System, light and dark, plus the palettes you already stare at all day. Density and
-          text size follow the same config.
+          System, light and dark, plus the eight named palettes you already stare at all day.
+          Density and text size follow the same config.
         </p>
-        <span class="stamp">9 looks, one popover</span>
+        <span class="stamp">11 looks, one popover</span>
       </div>
     </div>
 
-    <div class="theme-grid">
+    <div class="theme-grid theme-grid--shots">
       {
         themes.map((theme) => (
-          <article class={`theme-card theme-card--${theme.id}`}>
-            <div class="theme-preview" aria-hidden="true">
-              <span class="theme-line theme-line--strong" />
-              <span class="theme-line" />
-              <span class="theme-line theme-line--short" />
+          <figure class="theme-shot">
+            <div class="theme-shot-frame">
+              <img
+                src={`${base}product/${theme.file}?v=1`}
+                width="380"
+                height="505"
+                alt={`The peekr popover in the ${theme.name} theme`}
+                loading="lazy"
+                decoding="async"
+              />
             </div>
-            <span class="theme-name">{theme.name}</span>
-          </article>
+            <figcaption>
+              <span class="theme-shot-name">{theme.name}</span>
+              <span class="theme-shot-desc">{theme.desc}</span>
+            </figcaption>
+          </figure>
         ))
       }
     </div>

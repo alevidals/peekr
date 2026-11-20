@@ -1,6 +1,10 @@
 ---
 import { Font } from "astro:assets";
 import "../styles/global.css";
+import "../styles/header.css";
+import "../styles/palette-paper-blue.css";
+import "../styles/hero-real.css";
+import "../styles/themes-real.css";
 import appIcon from "../assets/app-icon.png";
 import favicon from "../assets/favicon.svg";
 import { REPO_URL, RELEASES_URL } from "../lib/releases";
@@ -70,24 +74,31 @@ const software = {
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
 
-    <header class="site-header" id="site-header">
-      <div class="container header-inner">
+    <header class="site-head">
+      <div class="container nav">
         <a class="brand" href={base} aria-label="peekr home">
-          <img src={appIcon.src} width="30" height="30" alt="" />
+          <img src={appIcon.src} width="24" height="24" alt="" />
           <span>peekr</span>
         </a>
 
-        <nav class="site-nav" aria-label="Main">
+        <nav class="nav-links" aria-label="Main">
           <a href="#product">Product</a>
           <a href="#features">Features</a>
           <a href="#themes">Themes</a>
           <a href="#download">Download</a>
+          <a href={REPO_URL}>GitHub</a>
         </nav>
 
-        <div class="header-actions">
-          <a class="header-source" href={REPO_URL}>GitHub</a>
-          <a class="header-cta" href="#download">Download</a>
-        </div>
+        <details class="nav-menu">
+          <summary>Menu</summary>
+          <div class="nav-menu-panel">
+            <a href="#product">Product</a>
+            <a href="#features">Features</a>
+            <a href="#themes">Themes</a>
+            <a href="#download">Download</a>
+            <a href={REPO_URL}>GitHub</a>
+          </div>
+        </details>
       </div>
     </header>
 
@@ -130,14 +141,5 @@ const software = {
         <span>Verify <code>SHA256SUMS</code> before running a build.</span>
       </div>
     </footer>
-
-    <script is:inline>
-      (() => {
-        const header = document.getElementById("site-header");
-        const onScroll = () => header?.toggleAttribute("data-scrolled", window.scrollY > 8);
-        onScroll();
-        addEventListener("scroll", onScroll, { passive: true });
-      })();
-    </script>
   </body>
 </html>
