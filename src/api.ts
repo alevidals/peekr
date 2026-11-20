@@ -1,8 +1,18 @@
 // Single place that knows the names of the Tauri commands and events.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AccountInput, Appearance, Config, ProviderKind, PullRequest, Theme, UpdateStatus } from "./types";
+import type {
+  AccountInput,
+  Appearance,
+  AppInfo,
+  Config,
+  ProviderKind,
+  PullRequest,
+  Theme,
+  UpdateStatus,
+} from "./types";
 
+export const getAppInfo = () => invoke<AppInfo>("app_info");
 export const getConfig = () => invoke<Config>("get_config");
 
 export const saveConfig = (

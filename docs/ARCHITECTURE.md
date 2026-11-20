@@ -160,11 +160,14 @@ src/
   App.css                    # the design system and window layout
   components/
     AccountForm.tsx          # one account's fields and validation
+    AboutPanel.tsx           # identity, paths, credentials note and update check
+    ConfirmDialog.tsx        # destructive-action confirmation
     EmptyState.tsx
     Icons.tsx
     PrItem.tsx               # one PR row
     PrList.tsx               # grouping, counts, provider labels
     Settings.tsx             # settings window body
+    UpdateCheck.tsx          # manual GitHub release comparison
   hooks/
     useConfig.ts             # load config, apply appearance, isConfigured
     usePopoverAnimation.ts   # entrance/exit animation and show/hide events
@@ -385,6 +388,7 @@ providers and resolves the token owner again.
 
 | Area     | Command               | Purpose                                                        |
 | -------- | --------------------- | -------------------------------------------------------------- |
+| App      | `app_info`            | Version, platform, architecture, config and log paths          |
 | Config   | `get_config`          | Polling interval, theme, appearance and accounts (`has_token`) |
 | Config   | `save_config`         | Validate, write tokens, write config, delete orphans, refresh  |
 | Accounts | `validate_credentials`| Check a typed token or the stored token for an account         |
@@ -463,6 +467,10 @@ with a hidden title so content extends under the traffic lights. Opening Setting
 hides the popover, switches the activation policy to `Regular` (Dock icon), and
 focuses the window. Closing it returns to `Accessory`. If the window was
 destroyed, `open_settings_window` rebuilds it.
+
+The settings sidebar has Accounts, General, Appearance and About. About shows the
+app identity, version, platform, config/log paths, the keychain note and the
+manual update check.
 
 ## 10. Notifications
 

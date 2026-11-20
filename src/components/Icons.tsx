@@ -178,6 +178,16 @@ export function IconAccount({ size = 16, className }: IconProps) {
   );
 }
 
+export function IconInfo({ size = 16, className }: IconProps) {
+  return base(
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>,
+    size, className
+  );
+}
+
 export function IconPalette({ size = 16, className }: IconProps) {
   return base(
     <>

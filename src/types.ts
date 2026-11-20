@@ -88,6 +88,15 @@ export interface UpdateStatus {
   release_url: string;
 }
 
+/** Paths and platform metadata shown in Settings → About. */
+export interface AppInfo {
+  version: string;
+  platform: string;
+  arch: string;
+  config_dir: string;
+  log_dir: string;
+}
+
 /** What the settings window sends back for each account. */
 export interface AccountInput {
   id?: string;

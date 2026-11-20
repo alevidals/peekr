@@ -195,6 +195,16 @@
   color: var(--accent-ink);
 }
 
+.settings-nav-item--about {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.settings-nav-item--about[aria-selected="true"] {
+  border-color: var(--accent);
+}
+
 .settings-sidebar-footer {
   margin-top: auto;
   padding: 8px;
@@ -705,6 +715,69 @@
 
 .link-btn:active {
   opacity: 0.8;
+}
+
+/* ───────────── About ───────────── */
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.about-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(15, 18, 30, 0.18);
+}
+
+.about-brand h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.about-brand p {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 8px 14px;
+  font-size: 12px;
+}
+
+.about-grid dt {
+  color: var(--text-secondary);
+}
+
+.about-grid dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.about-note {
+  margin: 18px 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.about-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.about-message {
+  margin-top: 14px;
 }
 
 /* ───────────── Update check ───────────── */

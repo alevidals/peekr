@@ -86,6 +86,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::app_info,
             commands::get_config,
             commands::save_config,
             commands::validate_credentials,

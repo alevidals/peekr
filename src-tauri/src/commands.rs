@@ -13,6 +13,15 @@ use crate::{
 };
 
 #[derive(Serialize)]
+pub struct AppInfo {
+    pub version: String,
+    pub platform: String,
+    pub arch: String,
+    pub config_dir: String,
+    pub log_dir: String,
+}
+
+#[derive(Serialize)]
 pub struct AccountResponse {
     pub id: String,
     pub kind: ProviderKind,
@@ -39,6 +48,17 @@ pub struct AccountInput {
     pub repos: Vec<String>,
     /// Empty/absent keeps the stored token.
     pub token: Option<String>,
+}
+
+#[tauri::command]
+pub fn app_info(app: AppHandle) -> AppResult<AppInfo> {
+    Ok(AppInfo {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        platform: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        config_dir: app.path().app_config_dir()?.to_string_lossy().into_owned(),
+        log_dir: app.path().app_log_dir()?.to_string_lossy().into_owned(),
+    })
 }
 
 #[tauri::command]

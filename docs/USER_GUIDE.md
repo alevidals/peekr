@@ -194,15 +194,21 @@ it instead. Cancelling the confirmation keeps the account untouched.
 
 - **Polling interval**: 30 to 3600 seconds. The default is 120 seconds.
 - **Launch at login**: registers peekr with the OS autostart mechanism.
-- **Open logs**: reveals the application log directory in the file manager.
-- **Check for updates**: asks GitHub for the latest published release and compares
-  it with the running version. It only shows the result and opens the release
-  page in the browser; nothing is downloaded or installed automatically. On a
-  private repository it reuses the first configured GitHub account's token (in
-  Rust only) so the release can be read.
 
 If several polls fail in a row, peekr backs off up to three doublings of the
 configured interval, so a service that is down or throttling is not hammered.
+
+### About
+
+- App name, icon and version.
+- Platform and architecture.
+- Config and log directories, with **Open logs** to reveal the log folder.
+- A reminder that credentials live in the OS keychain.
+- **Check for updates**: asks GitHub for the latest published release and
+  compares it with the running version. It only shows the result and opens the
+  release page in the browser; nothing is downloaded or installed automatically.
+  On a private repository it reuses the first configured GitHub account's token
+  (in Rust only) so the release can be read.
 
 ### Appearance
 
@@ -260,7 +266,7 @@ marker, not a count.
 
 ### Diagnostics
 
-Open **Settings → General → Open logs** to reveal the application log in Finder,
+Open **Settings → About → Open logs** to reveal the application log in Finder,
 Explorer or the system file manager. The log goes to stdout in development and to
 the platform log directory in a packaged build. It rotates at 2 MiB and does not
 contain tokens.

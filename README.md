@@ -5,9 +5,8 @@
 <h1 align="center">peekr</h1>
 
 <p align="center">
-  A tray-first desktop client for the pull requests waiting on you.<br />
-  Bitbucket Cloud and GitHub, native notifications, a live badge in the menu bar,
-  and a popover that stays out of the way.
+  <strong>Your review queue, not your inbox.</strong><br />
+  Every pull request waiting on you — across Bitbucket and GitHub — in one quiet tray popover.
 </p>
 
 <p align="center">
@@ -34,6 +33,15 @@ A second tab lists your own open PRs and tells you whether each one could be
 merged now. GitHub supplies its own verdict. Bitbucket uses its mergeability
 checks when the token can read them, and otherwise falls back to pipelines,
 approvals, requested changes and open tasks.
+
+## Why peekr
+
+- **Proactive, not reactive.** New review requests reach you when they arrive, not
+  when you remember to search your inbox.
+- **One place for every project.** Bitbucket and GitHub accounts, repositories and
+  team requests in the same list.
+- **No email archaeology.** Notifications, CI state and merge readiness without
+  digging through lost threads.
 
 ## Highlights
 

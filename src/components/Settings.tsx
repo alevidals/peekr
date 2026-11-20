@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { getConfig, openLogs, saveConfig, validateCredentials } from "../api";
+import { getConfig, saveConfig, validateCredentials } from "../api";
 import { applyAppearance } from "../theme";
 import {
   DEFAULT_APPEARANCE,
@@ -19,10 +19,10 @@ import {
   isDraftComplete,
   type AccountDraft,
 } from "../drafts";
-import { IconAccount, IconPalette, IconPlus, IconSettings } from "./Icons";
+import { IconAccount, IconInfo, IconPalette, IconPlus, IconSettings } from "./Icons";
 import { AccountForm } from "./AccountForm";
+import { AboutPanel } from "./AboutPanel";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { UpdateCheck } from "./UpdateCheck";
 import "./Settings.css";
 
 interface Props {
@@ -41,7 +41,7 @@ const TEXT_SIZES: { value: TextSize; label: string }[] = [
   { value: "large", label: "Large" },
 ];
 
-type Section = "accounts" | "general" | "appearance";
+type Section = "accounts" | "general" | "appearance" | "about";
 
 const SECTIONS: {
   id: Section;
@@ -66,6 +66,12 @@ const SECTIONS: {
     label: "Appearance",
     description: "Theme, density and text size.",
     icon: IconPalette,
+  },
+  {
+    id: "about",
+    label: "About",
+    description: "Version, paths and updates.",
+    icon: IconInfo,
   },
 ];
 
@@ -244,15 +250,6 @@ export function Settings({ onSaved, onClose }: Props) {
     }
   }
 
-  async function handleOpenLogs() {
-    setMessage("", null);
-    try {
-      await openLogs();
-    } catch (e) {
-      setMessage("", { type: "error", text: String(e) });
-    }
-  }
-
   const canSave = drafts.every(isDraftComplete);
   const formMessage = messages[""];
   const currentSection = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
@@ -304,7 +301,7 @@ export function Settings({ onSaved, onClose }: Props) {
                   aria-controls="settings-panel"
                   aria-label={item.id === "accounts" ? `Accounts, ${drafts.length}` : undefined}
                   tabIndex={selected ? 0 : -1}
-                  className="settings-nav-item"
+                  className={`settings-nav-item${item.id === "about" ? " settings-nav-item--about" : ""}`}
                   onClick={() => setSection(item.id)}
                   onKeyDown={(e) => onNavKeyDown(e, index)}
                 >
@@ -333,21 +330,23 @@ export function Settings({ onSaved, onClose }: Props) {
             role="tabpanel"
             aria-labelledby={`settings-tab-${section}`}
           >
-            <div className="settings-section-head">
-              <div>
-                <h2>{currentSection.label}</h2>
-                <p>{currentSection.description}</p>
+            {section !== "about" && (
+              <div className="settings-section-head">
+                <div>
+                  <h2>{currentSection.label}</h2>
+                  <p>{currentSection.description}</p>
+                </div>
+                {section === "appearance" && (
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => changeLook("system", DEFAULT_APPEARANCE)}
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-              {section === "appearance" && (
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => changeLook("system", DEFAULT_APPEARANCE)}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
+            )}
 
             {section === "accounts" && (
               <div className="settings-stack">
@@ -410,16 +409,6 @@ export function Settings({ onSaved, onClose }: Props) {
                     onClick={() => setAutostart((v) => !v)}
                   />
                 </div>
-                <div className="card row">
-                  <div className="row-text">
-                    <span className="row-title">Logs</span>
-                    <span className="hint">Open the folder with the application log</span>
-                  </div>
-                  <button type="button" className="btn btn--secondary" onClick={handleOpenLogs}>
-                    Open logs
-                  </button>
-                </div>
-                <UpdateCheck />
               </div>
             )}
 
@@ -500,6 +489,8 @@ export function Settings({ onSaved, onClose }: Props) {
                 </div>
               </div>
             )}
+
+            {section === "about" && <AboutPanel />}
           </div>
         </main>
       </div>

@@ -137,9 +137,9 @@ result.
 - [ ] Clearing the polling field does not save an invalid value.
 - [ ] Launch at login can be enabled and disabled, and the change survives a
       restart.
-- [ ] **Open logs** reveals the log directory and the current log is readable.
+- [ ] **Open logs** in About reveals the log directory and the current log is readable.
 - [ ] The log contains no tokens and has a bounded size.
-- [ ] **Check for updates** with the current version says it is up to date.
+- [ ] **Check for updates** in About with the current version says it is up to date.
 - [ ] With an older build than the latest release, it reports the newer version
       and the **Release page** button opens that release.
 - [ ] A network failure shows an error and leaves the button enabled for retry.

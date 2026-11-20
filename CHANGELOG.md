@@ -2,13 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- Settings now has an **About** section with the app icon, version, platform, config and log
+  paths, the keychain note, **Open logs** and **Check for updates**.
+- **Check for updates** compares the running version with the latest published GitHub
+  release, links to its release page, and never downloads or installs anything automatically.
+
 ## 0.1.0 — 2026-11-19
 
 ### Added
 
-- Settings → General → **Check for updates** compares the running version with the latest
-  published GitHub release, links to its release page, and never downloads or installs
-  anything automatically.
 - Launching peekr while it is already running now focuses the existing popover instead of
   starting a second tray process.
 - The app writes a rotating log file (2 MiB) in the platform log directory, and Settings →

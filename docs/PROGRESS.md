@@ -49,6 +49,7 @@ and left open.
 - [x] CI, release and security workflows plus the version-consistency script
 - [x] Single-instance guard and a rotating application log with an Open logs action
 - [x] Manual Check for updates against the latest GitHub release
+- [x] About section with app identity, paths, keychain note and updates
 - [x] Vitest + Testing Library for search, drafts, themes and the confirmation dialog
 - [x] CI on Ubuntu/macOS/Windows, security audits and a published `v0.1.0` release
 - [x] Architecture, user, dependency, release, roadmap and ADR docs
@@ -359,6 +360,28 @@ and left open.
 
 - Cross-platform visual QA on real Windows and Linux machines.
 
+### 2026-11-20 — Session 12: About panel
+
+**Done**
+
+- Added `app_info` (version, platform, arch, config dir, log dir) and the
+  `AppInfo` wire type.
+- Added **Settings → About** with the app icon, name, tagline, version, platform,
+  config/log paths, keychain note, **Open logs** and the update check.
+- Moved logs and updates out of General so General only holds polling and launch
+  at login.
+- Styled About as a distinct sidebar entry with a larger brand block and a
+  monospaced metadata grid.
+
+**Verified**
+
+- `bun run check` (15 frontend tests and 46 Rust tests, plus clippy, ESLint,
+  typecheck and production build).
+
+**Next**
+
+- Cross-platform visual QA on real Windows and Linux machines.
+
 ---
 
 ## Verification
@@ -382,7 +405,7 @@ bun run rust:test
 | --------------------- | --------------------------------------------------- |
 | `bun run typecheck`   | pass                                                |
 | `bun run lint`        | pass                                                |
-| `bun run test`        | 14 tests pass in 5 files                            |
+| `bun run test`        | 15 tests pass in 6 files                            |
 | `bun run build`       | pass                                                |
 | `cargo fmt --check`   | pass                                                |
 | `cargo clippy`        | pass with `-D warnings`                             |
