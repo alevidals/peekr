@@ -1,0 +1,143 @@
+---
+import { Font } from "astro:assets";
+import "../styles/global.css";
+import appIcon from "../assets/app-icon.png";
+import favicon from "../assets/favicon.svg";
+import { REPO_URL, RELEASES_URL } from "../lib/releases";
+
+interface Props {
+  title: string;
+  description: string;
+  version?: string;
+}
+
+const { title, description, version } = Astro.props;
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const origin = Astro.site ?? new URL("https://alevidals.github.io");
+const canonical = new URL(Astro.url.pathname, origin).href;
+
+const software = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "peekr",
+  description:
+    "A tray-first pull request client for Bitbucket and GitHub that centralizes review requests, CI state and merge readiness.",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "macOS, Windows, Linux",
+  url: canonical,
+  downloadUrl: version ? `${RELEASES_URL}/tag/v${version}` : RELEASES_URL,
+  softwareVersion: version,
+  license: "https://opensource.org/license/mit",
+  sameAs: [REPO_URL],
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  inLanguage: "en",
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={favicon.src} type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="peekr" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content="en_US" />
+    <meta name="application-name" content="peekr" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <script type="application/ld+json" set:html={JSON.stringify(software)} />
+    <meta name="generator" content={Astro.generator} />
+    <style is:inline>
+      html,
+      body {
+        overflow-x: clip;
+      }
+    </style>
+    <Font cssVariable="--font-display" preload />
+    <Font cssVariable="--font-sans" />
+    <Font cssVariable="--font-mono" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" id="site-header">
+      <div class="container header-inner">
+        <a class="brand" href={base} aria-label="peekr home">
+          <img src={appIcon.src} width="30" height="30" alt="" />
+          <span>peekr</span>
+        </a>
+
+        <nav class="site-nav" aria-label="Main">
+          <a href="#product">Product</a>
+          <a href="#features">Features</a>
+          <a href="#themes">Themes</a>
+          <a href="#download">Download</a>
+        </nav>
+
+        <div class="header-actions">
+          <a class="header-source" href={REPO_URL}>GitHub</a>
+          <a class="header-cta" href="#download">Download</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-grid">
+        <div class="footer-brand">
+          <a class="brand brand--footer" href={base}>
+            <img src={appIcon.src} width="34" height="34" alt="" />
+            <span>peekr</span>
+          </a>
+          <p><strong>Your review queue, not your inbox.</strong></p>
+          <p class="footer-fine">
+            Built with Tauri 2, React and Rust. MIT licensed. Set in Instrument Serif, DM Sans and
+            IBM Plex Mono, <a href={`${base}font-licenses/index.html`}>SIL OFL</a>.
+          </p>
+        </div>
+
+        <div class="footer-links">
+          <div>
+            <span class="footer-label">Product</span>
+            <a href="#product">Overview</a>
+            <a href="#features">Features</a>
+            <a href="#download">Download</a>
+          </div>
+          <div>
+            <span class="footer-label">Project</span>
+            <a href={REPO_URL}>Source</a>
+            <a href={RELEASES_URL}>Releases</a>
+            <a href={`${REPO_URL}/tree/main/docs`}>Documentation</a>
+            <a href={`${REPO_URL}/blob/main/LICENSE`}>License</a>
+          </div>
+        </div>
+      </div>
+      <div class="container footer-bottom">
+        <span>peekr {version ? `v${version}` : ""}</span>
+        <span>Verify <code>SHA256SUMS</code> before running a build.</span>
+      </div>
+    </footer>
+
+    <script is:inline>
+      (() => {
+        const header = document.getElementById("site-header");
+        const onScroll = () => header?.toggleAttribute("data-scrolled", window.scrollY > 8);
+        onScroll();
+        addEventListener("scroll", onScroll, { passive: true });
+      })();
+    </script>
+  </body>
+</html>

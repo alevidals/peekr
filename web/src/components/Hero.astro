@@ -1,0 +1,40 @@
+---
+import MockApp from "./MockApp.astro";
+import { REPO_URL } from "../lib/releases";
+
+interface Props {
+  version: string;
+}
+
+const { version } = Astro.props;
+---
+
+<section class="hero" id="product">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <h1>
+        Your review queue,<br />
+        not your inbox.
+      </h1>
+
+      <p class="hero-lead">
+        Every review request from Bitbucket and GitHub, in one quiet place.
+      </p>
+
+      <div class="hero-actions">
+        <a class="button button--ink" href="#download">Download peekr</a>
+        <a class="button button--ghost" href={REPO_URL}>View source</a>
+      </div>
+
+      <ul class="hero-facts">
+        <li class="hero-version">v{version}</li>
+        <li>macOS</li>
+        <li>Windows</li>
+        <li>Linux</li>
+        <li>MIT</li>
+      </ul>
+    </div>
+
+    <MockApp />
+  </div>
+</section>

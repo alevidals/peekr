@@ -7,16 +7,8 @@ interface Props {
   pr: PullRequest;
   /** Position in the list; drives the staggered entrance. */
   index?: number;
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.max(0, Math.floor(diff / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  /** Review rows lead with the author; own rows lead with the merge verdict. */
+  view: "review" | "mine";
 }
 
 const CI_STATE: Record<CiStatus, string> = {
@@ -24,6 +16,15 @@ const CI_STATE: Record<CiStatus, string> = {
   failed: "failed",
   pending: "running",
 };
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.max(0, Math.floor(diff / 60000));
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
 /** GitHub calls them checks (Actions and commit statuses); Bitbucket calls them pipelines. */
 function ciLabel(provider: PullRequest["provider"], status: CiStatus): string {
@@ -41,60 +42,91 @@ function CiBadge({ provider, status }: { provider: PullRequest["provider"]; stat
 }
 
 const MERGE_LABEL: Record<MergeState, string> = {
-  ready: "Ready to merge",
+  ready: "Ready",
   waiting: "Waiting",
   blocked: "Blocked",
   conflicts: "Conflicts",
-  behind: "Behind base",
+  behind: "Behind",
   draft: "Draft",
-  unknown: "Checking…",
+  unknown: "Checking",
 };
 
-/** Bitbucket has no merge verdict, so its "ready" is an inference from checks and approvals. */
-function MergePill({ pr }: { pr: PullRequest }) {
+type Tone = "good" | "wait" | "bad" | "muted";
+
+interface Verdict {
+  text: string;
+  tone: Tone;
+  /** Full blockers, for the tooltip: the row only has space for the label and a count. */
+  note?: string;
+}
+
+function mergeVerdict(pr: PullRequest): Verdict | null {
   const merge = pr.merge;
+  // A draft already carries a badge; repeating it as the verdict adds nothing.
   if (!merge || merge.state === "draft") return null;
-  const label = merge.state === "ready" && pr.provider === "bitbucket" ? "Looks ready" : MERGE_LABEL[merge.state];
-  // Do not repeat the label as its own blocker ("Behind base · Behind base").
-  const blockers = merge.blockers.filter((blocker) => blocker.toLowerCase() !== label.toLowerCase());
+
+  const label =
+    merge.state === "ready" && pr.provider === "bitbucket" ? "Looks ready" : MERGE_LABEL[merge.state];
   // GitHub keeps a PR mergeable when only non-required checks fail or are still running
   // (`UNSTABLE`); the CI badge shows it, so name the caveat next to the ready state.
   const caveat =
-    merge.state !== "ready"
-      ? null
-      : pr.ci_status === "failed"
-        ? "Other checks failing"
-        : pr.ci_status === "pending"
-          ? "Other checks running"
-          : null;
-  const notes = caveat ? [...blockers, caveat] : blockers;
-  const title = [...merge.blockers, ...(caveat ? [caveat] : [])].join("\n") || label;
-  return (
-    <span className={`merge-pill merge-pill--${merge.state}`} title={title}>
-      <span className="merge-pill-label">{label}</span>
-      {notes.length > 0 && <span className="merge-pill-blockers">{notes.join(", ")}</span>}
-    </span>
-  );
+    merge.state === "ready" && pr.ci_status === "failed"
+      ? "Other checks failing"
+      : merge.state === "ready" && pr.ci_status === "pending"
+        ? "Other checks running"
+        : null;
+  const note = [...merge.blockers, ...(caveat ? [caveat] : [])].join(", ");
+  const tone: Tone =
+    merge.state === "ready"
+      ? "good"
+      : merge.state === "waiting" || merge.state === "unknown"
+        ? "wait"
+        : "bad";
+
+  return {
+    text: merge.blockers.length > 1 ? `${label} ${merge.blockers.length}` : label,
+    tone,
+    note: note || undefined,
+  };
 }
 
-export const PrItem = memo(function PrItem({ pr, index = 0 }: Props) {
+export const PrItem = memo(function PrItem({ pr, index = 0, view }: Props) {
   function handleClick() {
     openUrl(pr.html_url);
   }
 
+  const verdict = view === "mine" ? mergeVerdict(pr) : null;
+  const updated = timeAgo(pr.updated_on);
+  const label = [
+    `${pr.title}, #${pr.number}`,
+    pr.draft ? "draft" : null,
+    `by ${pr.author_display_name}`,
+    `${pr.source_branch} to ${pr.destination_branch}`,
+    verdict ? (verdict.note ? `${verdict.text}: ${verdict.note}` : verdict.text) : null,
+    pr.ci_status ? ciLabel(pr.provider, pr.ci_status) : null,
+    pr.approvals > 0
+      ? `${pr.approvals} ${pr.approvals === 1 ? "approval" : "approvals"}`
+      : null,
+    pr.comment_count > 0 ? `${pr.comment_count} comments` : null,
+    `updated ${updated} ago`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <button
-      className={`pr-item${pr.draft ? " pr-item--draft" : ""}`}
+      className="pr-item"
       onClick={handleClick}
       style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+      aria-label={label}
     >
-      <span className="pr-item-avatar">
+      <span className="pr-item-avatar" aria-hidden="true">
         {pr.author_avatar_url ? (
           <img
             src={pr.author_avatar_url}
             alt=""
-            width={30}
-            height={30}
+            width={28}
+            height={28}
             loading="lazy"
             decoding="async"
           />
@@ -104,36 +136,60 @@ export const PrItem = memo(function PrItem({ pr, index = 0 }: Props) {
           </span>
         )}
       </span>
-      <span className="pr-item-body">
-        <span className="pr-item-title" title={pr.title}>
-          {pr.draft && <span className="pr-item-draft-badge">Draft</span>}
-          {pr.title}
-        </span>
-        <span className="pr-item-meta">
-          <IconBranch size={12} className="pr-item-branch-icon" />
-          <span className="pr-item-branches" title={`${pr.source_branch} → ${pr.destination_branch}`}>
-            {pr.source_branch} → {pr.destination_branch}
+
+      <span className="pr-item-body" aria-hidden="true">
+        <span className="pr-item-top">
+          <span className="pr-item-heading">
+            {pr.draft && <span className="pr-item-draft-badge">Draft</span>}
+            <span className="pr-item-title" title={pr.title}>
+              {pr.title}
+            </span>
+            <span className="pr-item-number">#{pr.number}</span>
           </span>
+
+          {view === "mine" ? (
+            verdict && (
+              <span
+                className={`pr-item-status pr-item-status--${verdict.tone}`}
+                title={verdict.note}
+              >
+                {verdict.text}
+              </span>
+            )
+          ) : (
+            <span className="pr-item-author" title={pr.author_display_name}>
+              {pr.author_display_name}
+            </span>
+          )}
         </span>
-        <MergePill pr={pr} />
-        <span className="pr-item-footer">
-          <span className="pr-item-author" title={pr.author_display_name}>{pr.author_display_name}</span>
-          <span className="pr-item-footer-right">
+
+        <span className="pr-item-sub">
+          <span className="pr-item-meta">
+            <IconBranch size={11} className="pr-item-branch-icon" />
+            <span
+              className="pr-item-branches"
+              title={`${pr.source_branch} → ${pr.destination_branch}`}
+            >
+              {pr.source_branch} to {pr.destination_branch}
+            </span>
+          </span>
+
+          <span className="pr-item-right">
             {pr.ci_status && <CiBadge provider={pr.provider} status={pr.ci_status} />}
             {pr.approvals > 0 && (
               <span
                 className="pr-item-approvals"
                 title={`${pr.approvals} ${pr.approvals === 1 ? "approval" : "approvals"}`}
               >
-                <IconCheck size={12} /> {pr.approvals}
+                <IconCheck size={11} /> {pr.approvals}
               </span>
             )}
-            <span className="pr-item-time">{timeAgo(pr.updated_on)}</span>
             {pr.comment_count > 0 && (
               <span className="pr-item-comments">
-                <IconMessage size={13} /> {pr.comment_count}
+                <IconMessage size={11} /> {pr.comment_count}
               </span>
             )}
+            <span className="pr-item-time">{updated}</span>
           </span>
         </span>
       </span>

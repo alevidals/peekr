@@ -50,6 +50,7 @@ and left open.
 - [x] Single-instance guard and a rotating application log with an Open logs action
 - [x] Manual Check for updates against the latest GitHub release
 - [x] About section with app identity, paths, keychain note and updates
+- [x] Astro landing page in `web/` with a Pages workflow and release-aware downloads
 - [x] Vitest + Testing Library for search, drafts, themes and the confirmation dialog
 - [x] CI on Ubuntu/macOS/Windows, security audits and a published `v0.1.0` release
 - [x] Architecture, user, dependency, release, roadmap and ADR docs
@@ -382,6 +383,63 @@ and left open.
 
 - Cross-platform visual QA on real Windows and Linux machines.
 
+### 2026-11-20 — Session 13: Astro landing page
+
+**Done**
+
+- Added `web/` as a separate Astro project with its own `bun.lock` and scripts
+  (`web:dev`, `web:check`, `web:build`).
+- Editorial paper/ink/lime landing with a CSS-built popover mock, feature grid,
+  dark product section, theme swatches, release-aware downloads and FAQ.
+- `loadRelease()` resolves the latest GitHub release at build time and falls back
+  to the `/releases/latest` redirect for local or unauthenticated builds.
+- Added `.github/workflows/web.yml` for GitHub Pages, triggered by `web/`
+  changes, published releases and manual runs.
+- Added web dependency auditing to the security workflow and documented the
+  landing deployment in `RELEASE.md`.
+- Ran a Hallmark polish: tokenized the palette, removed eyebrows and tracked-caps
+  labels, flattened the drawn OS window into a portrait popover mock, fixed focus
+  and contrast, and stacked the mock rows on mobile. Sloplint reports 0 FAIL,
+  0 REFLEX and 0 WARN; the three remaining notes are advisory.
+
+**Verified**
+
+- `bun run web:check` (0 errors, 0 warnings).
+- `bun run web:build` (static output in `web/dist`).
+- Desktop `bun run check` remains green.
+
+**Next**
+
+- Review the landing locally before pushing or enabling GitHub Pages.
+
+### 2026-11-20 — Session 14: Popover identity and theme gallery
+
+**Done**
+
+- Ported the approved mixed design into `PrItem`/`PrList`: two-line rows, author on review rows
+  and merge verdict on own rows, CI, approvals, comments and age, the PR number, short verdict
+  labels with the blockers in the tooltip, and a full `aria-label` per row.
+- Restyled the header, tabs, count pills, group headers and footer to the same hierarchy.
+  Comfortable rows stay around 51 px; compact keeps the avatar and trims the padding.
+- Bundled Instrument Serif, DM Sans and IBM Plex Mono (SIL OFL 1.1) in `public/fonts/` with their
+  licences and startup preloads; removed the proprietary named fallbacks from the app and the
+  landing. Settings → About carries the attribution.
+- Replaced the old comparison preview with a dev-only gallery: one iframe per appearance option,
+  built from the real components, with System following the OS (`bun run dev:gallery`, port 1421).
+- Updated the landing hero mock to the current row design and removed the internal `/preview`
+  Astro page.
+
+**Verified**
+
+- `bun run check` (15 frontend tests, 46 Rust tests, clippy, ESLint, typecheck and build).
+- `bun run web:check` and `bun run web:build` (1 page).
+- Visual checks: all 11 appearance options, dark and light, compact with large text, the long
+  title/branch rows, and the hero at 1280 × 800.
+
+**Next**
+
+- Configure GitHub Pages and the `v*` tag rule before the web workflow deploys.
+
 ---
 
 ## Verification
@@ -399,7 +457,7 @@ bun run rust:lint
 bun run rust:test
 ```
 
-**Last verification run:** 2026-11-19.
+**Last verification run:** 2026-11-20.
 
 | Gate                  | Result                                              |
 | --------------------- | --------------------------------------------------- |
@@ -410,6 +468,8 @@ bun run rust:test
 | `cargo fmt --check`   | pass                                                |
 | `cargo clippy`        | pass with `-D warnings`                             |
 | `cargo test`          | 46 tests pass                                       |
+| `bun run web:check`   | 0 errors, 0 warnings                                |
+| `bun run web:build`   | pass (1 page)                                       |
 
-No frontend test runner yet. Manual acceptance steps are in
-[QA-CHECKLIST.md](../QA-CHECKLIST.md).
+Frontend tests run with Vitest and Testing Library. Manual acceptance steps are
+in [QA-CHECKLIST.md](../QA-CHECKLIST.md).

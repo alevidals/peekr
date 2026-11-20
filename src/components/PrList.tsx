@@ -6,6 +6,8 @@ import { PrItem } from "./PrItem";
 
 interface Props {
   prs: PullRequest[];
+  /** Review rows lead with the author; own rows lead with the merge verdict. */
+  view: "review" | "mine";
 }
 
 interface GroupItem {
@@ -44,7 +46,7 @@ function groupByRepo(prs: PullRequest[]) {
   return { groups: [...groups.values()], showProvider: providers.size > 1 };
 }
 
-export function PrList({ prs }: Props) {
+export function PrList({ prs, view }: Props) {
   const { groups, showProvider } = useMemo(() => groupByRepo(prs), [prs]);
 
   return (
@@ -62,7 +64,7 @@ export function PrList({ prs }: Props) {
           {group.items.map(({ pr, index }, i) => (
             <Fragment key={prKey(pr)}>
               {i > 0 && <div className="pr-item-separator" />}
-              <PrItem pr={pr} index={index} />
+              <PrItem pr={pr} index={index} view={view} />
             </Fragment>
           ))}
         </div>

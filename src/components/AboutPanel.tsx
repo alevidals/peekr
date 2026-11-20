@@ -66,6 +66,10 @@ export function AboutPanel() {
         </button>
       </div>
 
+      <p className="about-credit">
+        Set in Instrument Serif, DM Sans and IBM Plex Mono, licensed under the SIL OFL 1.1.
+      </p>
+
       <UpdateCheck />
     </div>
   );

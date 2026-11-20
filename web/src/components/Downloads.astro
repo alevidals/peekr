@@ -1,0 +1,124 @@
+---
+import { findAsset, formatBytes, LATEST_RELEASE_URL, type ReleaseInfo } from "../lib/releases";
+
+interface Props {
+  release: ReleaseInfo;
+}
+
+const { release } = Astro.props;
+
+const platforms = [
+  {
+    id: "macos",
+    name: "macOS",
+    detail: "Universal, Intel + Apple Silicon",
+    portable: { label: "Portable .zip", suffix: "_macos-universal_portable.zip" },
+    installer: { label: "Disk image", suffix: ".dmg" },
+  },
+  {
+    id: "windows",
+    name: "Windows",
+    detail: "x64, Windows 10/11",
+    portable: { label: "Portable .zip", suffix: "_windows-x64_portable.zip" },
+    installer: { label: "Setup", suffix: "-setup.exe" },
+  },
+  {
+    id: "linux",
+    name: "Linux",
+    detail: "x64, AppImage or Debian",
+    portable: { label: "AppImage", suffix: "_linux-x64.AppImage" },
+    installer: { label: ".deb", suffix: "_linux-x64.deb" },
+  },
+  {
+    id: "linux-arm",
+    name: "Linux ARM64",
+    detail: "aarch64, AppImage or Debian",
+    portable: { label: "AppImage", suffix: "_linux-arm64.AppImage" },
+    installer: { label: ".deb", suffix: "_linux-arm64.deb" },
+  },
+];
+
+function link(suffix: string) {
+  const asset = findAsset(release, suffix);
+  return {
+    href: asset?.url ?? LATEST_RELEASE_URL,
+    size: asset ? formatBytes(asset.bytes) : "",
+  };
+}
+
+const sums = findAsset(release, "SHA256SUMS");
+---
+
+<section class="section downloads" id="download">
+  <div class="container">
+    <div class="download-head">
+      <div>
+        <h2>Take the queue<br />with you.</h2>
+      </div>
+      <div class="download-side">
+        <span class="download-version">v{release.version}</span>
+        <p>
+          macOS universal, Windows x64 and Linux x64/ARM64. Portable builds and installers.
+          Every release ships <code>SHA256SUMS</code>.
+        </p>
+      </div>
+    </div>
+
+    <ul class="download-list">
+      {
+        platforms.map((platform) => {
+          const portable = link(platform.portable.suffix);
+          const installer = link(platform.installer.suffix);
+          return (
+            <li class="download-row" data-platform={platform.id}>
+              <div class="download-platform">
+                <span class="download-name">{platform.name}</span>
+                <span class="download-detail">{platform.detail}</span>
+              </div>
+              <div class="download-links">
+                <a class="download-link" href={portable.href}>
+                  {platform.portable.label}
+                  {portable.size ? <span>{portable.size}</span> : null}
+                </a>
+                <a class="download-link" href={installer.href}>
+                  {platform.installer.label}
+                  {installer.size ? <span>{installer.size}</span> : null}
+                </a>
+              </div>
+            </li>
+          );
+        })
+      }
+    </ul>
+
+    <div class="download-foot">
+      <p>
+        <strong>Unsigned builds.</strong> macOS is ad-hoc signed and not notarized; Windows shows
+        a SmartScreen warning. Verify the checksums before running a build from another mirror.
+      </p>
+      <div class="download-meta">
+        <a href={sums?.url ?? release.url}>Checksums</a>
+        <a href={release.url}>All files for v{release.version}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  // Presentation only: highlight the row that matches the visitor's OS.
+  (() => {
+    const ua = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent;
+    const armLinux = /linux/i.test(ua) && /aarch64|arm64|armv8/i.test(navigator.userAgent);
+    const id = /mac/i.test(ua)
+      ? "macos"
+      : /win/i.test(ua)
+        ? "windows"
+        : /linux/i.test(ua)
+          ? armLinux
+            ? "linux-arm"
+            : "linux"
+          : "";
+    if (!id) return;
+    document.querySelector(`[data-platform="${id}"]`)?.setAttribute("data-detected", "");
+  })();
+</script>

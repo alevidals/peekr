@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Landing page build output
+web/dist
+web/.astro
+
+# Hallmark review artifacts
+.hallmark
+
+# Playwright MCP scratch output
+.playwright-mcp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

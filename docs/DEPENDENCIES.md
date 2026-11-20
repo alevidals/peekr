@@ -93,6 +93,22 @@ image and `CALayer` overlays do the work.
 **Dev dependencies:** none beyond the standard Rust toolchain. Tests use
 `#[cfg(test)]` modules and serde fixtures; there is no mocking framework.
 
+### Landing page
+
+`web/` is a separate Bun project with its own lockfile. It is not part of the
+desktop dependency tree.
+
+| Package            | Version  | Purpose                 | Notes                                                  |
+| ------------------ | -------- | ----------------------- | ------------------------------------------------------ |
+| `astro`            | ^7.4.12  | Static landing page     | Build-time release fetch, static output                |
+| `@astrojs/check`   | ^0.9.12  | Astro/TS typecheck      | `bun run web:check`                                    |
+| `typescript`       | ~6.0.3   | Types for Astro scripts | Separate from the desktop app's toolchain              |
+
+No UI framework or icon package is added to the site; the page is Astro
+components and plain CSS. It self-hosts the same three SIL OFL 1.1 typefaces as
+the app through Astro's font pipeline, with the licence texts in
+`web/public/font-licenses/`.
+
 ---
 
 ## 4. Frontend dependencies
@@ -119,6 +135,12 @@ image and `CALayer` overlays do the work.
 | `@testing-library/react`         | ^16.3.3   | Component rendering         | Dialog and list tests                                        |
 | `@testing-library/jest-dom`      | ^8.0.0    | DOM matchers                | `toBeInTheDocument`, `toHaveFocus`                           |
 | `@testing-library/user-event`    | ^14.6.13  | Interaction tests           | Keyboard and click flows                                     |
+
+
+**Typography:** three bundled SIL OFL 1.1 families in `public/fonts/` — Instrument
+Serif (wordmark), DM Sans (UI) and IBM Plex Mono (branches, numbers, code). No
+font CDN and no runtime dependency on platform fonts; the licence texts ship in
+the same folder.
 
 **Not included intentionally:**
 

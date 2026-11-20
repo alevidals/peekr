@@ -140,7 +140,7 @@ export function PopoverWindow() {
     if (visiblePrs.length === 0) {
       return <EmptyState type={prs.length > 0 ? "no-matches" : tab === "review" ? "no-prs" : "no-mine"} />;
     }
-    return <PrList prs={visiblePrs} />;
+    return <PrList prs={visiblePrs} view={tab} />;
   }
 
   return (
@@ -223,7 +223,7 @@ export function PopoverWindow() {
           >
             My PRs
             {mine.length > 0 && (
-              <span className={`pr-count${readyCount > 0 ? " pr-count--ready" : ""}`} title={readyCount > 0 ? `${readyCount} ready to merge` : undefined}>
+              <span className="pr-count" title={readyCount > 0 ? `${readyCount} ready to merge` : undefined}>
                 {readyCount > 0 ? `${readyCount}/${mine.length}` : mine.length}
               </span>
             )}

@@ -124,6 +124,12 @@ bun run tauri dev      # app with hot reload
 bun run check          # typecheck, ESLint, Rust gates and production build
 ```
 
+To inspect the popover without the desktop shell:
+
+```bash
+bun run dev:gallery    # real popover in every theme, at http://localhost:1421/preview.html
+```
+
 Individual gates:
 
 ```bash
@@ -137,6 +143,16 @@ bun run rust:test
 The architecture and test strategy are described in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Manual acceptance steps live in
 [QA-CHECKLIST.md](QA-CHECKLIST.md).
+
+The landing page is a separate Astro project under `web/`:
+
+```bash
+bun run web:dev      # local dev server
+bun run web:check    # astro check
+bun run web:build    # static output in web/dist
+```
+
+It is built and deployed by `.github/workflows/web.yml`.
 
 ## Contributing
 

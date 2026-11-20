@@ -770,6 +770,12 @@
   color: var(--text-secondary);
 }
 
+.about-credit {
+  margin: -6px 0 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 .about-actions {
   display: flex;
   gap: 6px;

@@ -71,6 +71,23 @@ macOS and Windows. If you changed the native layer, also launch the app with
 `bun run tauri dev` and walk the relevant part of
 [QA-CHECKLIST.md](QA-CHECKLIST.md).
 
+The popover can be inspected outside the desktop shell:
+
+```bash
+bun run dev:gallery   # theme gallery at http://localhost:1421/preview.html
+```
+
+The landing page is a separate Bun project under `web/`:
+
+```bash
+bun run web:dev      # local Astro dev server
+bun run web:check    # astro check
+bun run web:build    # static output in web/dist
+```
+
+It is built and deployed by `.github/workflows/web.yml`; changes under `web/` do
+not run the desktop gates.
+
 ## Code style
 
 - TypeScript and TSX are formatted and linted by ESLint with the React hooks

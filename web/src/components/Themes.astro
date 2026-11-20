@@ -1,0 +1,45 @@
+---
+const themes = [
+  { id: "system", name: "System" },
+  { id: "one-dark", name: "One Dark" },
+  { id: "gruvbox-dark", name: "Gruvbox Dark" },
+  { id: "gruvbox-light", name: "Gruvbox Light" },
+  { id: "nord", name: "Nord" },
+  { id: "dracula", name: "Dracula" },
+  { id: "solarized-light", name: "Solarized Light" },
+  { id: "tokyo-night", name: "Tokyo Night" },
+  { id: "catppuccin-mocha", name: "Catppuccin Mocha" },
+];
+---
+
+<section class="section themes" id="themes">
+  <div class="container">
+    <div class="section-head section-head--split">
+      <div>
+        <h2>Dress for<br />the room.</h2>
+      </div>
+      <div class="section-side">
+        <p class="section-lead">
+          System, light and dark, plus the palettes you already stare at all day. Density and
+          text size follow the same config.
+        </p>
+        <span class="stamp">9 looks, one popover</span>
+      </div>
+    </div>
+
+    <div class="theme-grid">
+      {
+        themes.map((theme) => (
+          <article class={`theme-card theme-card--${theme.id}`}>
+            <div class="theme-preview" aria-hidden="true">
+              <span class="theme-line theme-line--strong" />
+              <span class="theme-line" />
+              <span class="theme-line theme-line--short" />
+            </div>
+            <span class="theme-name">{theme.name}</span>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>

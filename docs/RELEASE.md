@@ -242,6 +242,46 @@ custom `bundle.windows.signCommand`. The default WebView2 install mode is
 `downloadBootstrapper`, so the installer fetches the runtime when it is missing.
 Build on Windows; the MSI and NSIS installers come from the same command.
 
+## Landing page
+
+`web/` holds the static Astro landing page. It is a separate Bun project with
+its own `bun.lock`, outside the desktop dependency tree, so `tauri build` never
+sees it.
+
+```sh
+bun run web:dev      # local dev server
+bun run web:check    # astro check
+bun run web:build    # static output in web/dist
+```
+
+The newest published release is resolved at build time. Set `GITHUB_TOKEN` to
+read a private repository; without it the page still builds and links to the
+`/releases/latest` redirect. For public download links the repository and its
+release assets must be public.
+
+`SITE_URL` and `SITE_BASE` make the same build deployable anywhere:
+
+| Host                                | `SITE_URL`                    | `SITE_BASE` |
+| ----------------------------------- | ----------------------------- | ----------- |
+| GitHub Pages project site (default) | `https://alevidals.github.io` | `/peekr`    |
+| Custom domain, Vercel, Cloudflare   | `https://peekr.app`           | `/`         |
+
+### GitHub Pages
+
+`.github/workflows/web.yml` builds on changes under `web/`, on a published
+release and on demand, then deploys with `actions/deploy-pages`. One-time setup:
+**Settings → Pages → Build and deployment → Source: GitHub Actions**. For a
+custom domain, add it there and set `SITE_BASE=/` plus `SITE_URL` to the final
+domain.
+
+The `github-pages` environment must also allow **tag** deployments, not only
+`main`: publishing a release triggers a rebuild so the download links move to
+the new version. Add a tag rule (`v*`) in
+**Settings → Environments → github-pages → Deployment branches and tags**.
+
+Without that rule the build succeeds and the deploy fails with
+`Tag "vX.Y.Z" is not allowed to deploy to github-pages`.
+
 ## Linux packages
 
 Build on the target distribution. The Debian package is filed under the `devel`

@@ -1,0 +1,50 @@
+---
+const features = [
+  {
+    title: "One queue, every account",
+    copy: "Bitbucket and GitHub accounts, repositories and team requests in one list.",
+  },
+  {
+    title: "A notification that lands",
+    copy: "One native notification per request, with click-through to the exact PR.",
+  },
+  {
+    title: "My PRs, without the guessing",
+    copy: "GitHub's verdict, Bitbucket's checks, and a labelled fallback.",
+  },
+  {
+    title: "Native where it counts",
+    copy: "A template tray icon, a live badge, a non-activating macOS panel.",
+  },
+  {
+    title: "Secrets stay secret",
+    copy: "Tokens live in the OS keychain, never in config or logs.",
+  },
+  {
+    title: "A theme for the room",
+    copy: "System, light, dark and eight named palettes.",
+  },
+];
+---
+
+<section class="section features" id="features">
+  <div class="container">
+    <div class="section-head">
+      <h2>Review requests,<br />without the hunt.</h2>
+      <p class="section-lead">
+        peekr answers one question: does this need me? Everything else stays quiet.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+      {
+        features.map((feature) => (
+          <article class="feature">
+            <h3>{feature.title}</h3>
+            <p>{feature.copy}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>

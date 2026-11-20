@@ -1,0 +1,68 @@
+---
+import Base from "../layouts/Base.astro";
+import Downloads from "../components/Downloads.astro";
+import FAQ from "../components/FAQ.astro";
+import Features from "../components/Features.astro";
+import Hero from "../components/Hero.astro";
+import Themes from "../components/Themes.astro";
+import { loadRelease } from "../lib/releases";
+
+const release = await loadRelease();
+
+console.info(
+  release.live
+    ? `[site] using release v${release.version} with ${release.assets.length} assets`
+    : `[site] offline build, linking to the latest release page for v${release.version}`,
+);
+
+const title = "peekr: Your review queue, not your inbox.";
+const description =
+  "A tray-first pull request client for Bitbucket and GitHub. Review requests, CI state and merge readiness in one quiet place, with native notifications and no email hunt.";
+---
+
+<Base title={title} description={description} version={release.version}>
+  <Hero version={release.version} />
+
+  <Features />
+
+  <section class="section section--ink" id="why">
+    <div class="container ink-grid">
+      <div class="ink-copy">
+        <h2>A popover,<br />not a dashboard.</h2>
+        <p class="ink-lead">
+          The tray is the product. A badge tells you there is work; a click shows you only the PRs
+          that need a decision. No tabs for analytics, no charts, no notification center to manage.
+        </p>
+        <p class="ink-note">
+          It is deliberately small. The best review tool is the one that lets you get back to the
+          review.
+        </p>
+      </div>
+
+      <ol class="flow">
+        <li>
+          <div>
+            <h3><span class="flow-step">01.</span> Arrive</h3>
+            <p>A new request updates the badge and sends one native notification. No email digest.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3><span class="flow-step">02.</span> Scan</h3>
+            <p>Grouped by repository, searchable, with drafts and failing checks filtered out of the way.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3><span class="flow-step">03.</span> Open</h3>
+            <p>One click opens the exact PR in your browser. The tray gets out of the way again.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <Themes />
+  <Downloads release={release} />
+  <FAQ />
+</Base>

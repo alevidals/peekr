@@ -7,6 +7,7 @@ on:
       - "src-tauri/Cargo.lock"
       - "src-tauri/.cargo/audit.toml"
       - "bun.lock"
+      - "web/bun.lock"
       - ".github/workflows/security.yml"
   schedule:
     # Weekly: new advisories appear without any commit in this repository.
@@ -34,6 +35,12 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Audit dependencies
         run: bun audit --production --audit-level=moderate
+      - name: Install landing dependencies
+        run: bun install --frozen-lockfile
+        working-directory: web
+      - name: Audit landing dependencies
+        run: bun audit --production --audit-level=moderate
+        working-directory: web
 
   rust:
     name: Rust advisories

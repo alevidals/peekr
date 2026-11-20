@@ -4,10 +4,24 @@
 
 ### Added
 
+- Added the Astro landing page under `web/`, with a distinct editorial design, release-aware
+  download links, a build-time version check and a `.github/workflows/web.yml` Pages workflow.
+- Bundled Instrument Serif, DM Sans and IBM Plex Mono (SIL OFL 1.1) with the app, so the popover
+  and settings render the same on every platform.
+- Added a dev-only theme gallery at `preview.html` (`bun run dev:gallery`) that renders the real
+  popover once per appearance option.
 - Settings now has an **About** section with the app icon, version, platform, config and log
   paths, the keychain note, **Open logs** and **Check for updates**.
 - **Check for updates** compares the running version with the latest published GitHub
   release, links to its release page, and never downloads or installs anything automatically.
+
+### Changed
+
+- Popover rows use two lines: avatar, title with the PR number, author or merge verdict, branch,
+  CI, approvals, comments and age. Tabs, counts, group headers and the footer follow the same
+  quieter hierarchy.
+- Merge verdicts are short (`Ready`, `Waiting`, `Blocked`); the blockers stay in the tooltip.
+- The wordmark is set in Instrument Serif and branch names in IBM Plex Mono.
 
 ## 0.1.0 — 2026-11-19
 
