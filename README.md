@@ -60,19 +60,19 @@ approvals, requested changes and open tasks.
 
 ## Status
 
-`0.1.0` is released. The app also runs from source; CI, release and security
+`0.2.0` is released. The app also runs from source; CI, release and security
 workflows are green. See the [roadmap](docs/ROADMAP.md) for what comes next.
 
 ## Download
 
-[v0.1.0 release](https://github.com/alevidals/peekr/releases/tag/v0.1.0):
+[v0.2.0 release](https://github.com/alevidals/peekr/releases/tag/v0.2.0):
 
 | Platform        | Portable                                    | Installer                                    |
 | --------------- | ------------------------------------------- | -------------------------------------------- |
-| macOS universal | `peekr_0.1.0_macos-universal_portable.zip`  | `peekr_0.1.0_macos-universal.dmg`            |
-| Windows x64     | `peekr_0.1.0_windows-x64_portable.zip`      | `peekr_0.1.0_windows-x64-setup.exe`          |
-| Linux x64       | `peekr_0.1.0_linux-x64.AppImage`            | `peekr_0.1.0_linux-x64.deb`                  |
-| Linux ARM64     | `peekr_0.1.0_linux-arm64.AppImage`          | `peekr_0.1.0_linux-arm64.deb`                |
+| macOS universal | `peekr_0.2.0_macos-universal_portable.zip`  | `peekr_0.2.0_macos-universal.dmg`            |
+| Windows x64     | `peekr_0.2.0_windows-x64_portable.zip`      | `peekr_0.2.0_windows-x64-setup.exe`          |
+| Linux x64       | `peekr_0.2.0_linux-x64.AppImage`            | `peekr_0.2.0_linux-x64.deb`                  |
+| Linux ARM64     | `peekr_0.2.0_linux-arm64.AppImage`          | `peekr_0.2.0_linux-arm64.deb`                |
 
 Every release includes `SHA256SUMS`.
 
