@@ -273,10 +273,14 @@ export function Settings({ onSaved, onClose }: Props) {
   return (
     <div className="settings" inert={pendingRemoval !== null}>
       <header className="settings-header" data-tauri-drag-region>
-        <img className="settings-logo" src="/app-icon.png" alt="" />
+        <div className="settings-brand">
+          <img className="settings-logo" src="/app-icon.png" alt="" />
+          <span className="settings-wordmark">peekr</span>
+        </div>
+        <span className="settings-header-divider" aria-hidden="true" />
         <div className="settings-header-text">
           <h1>Settings</h1>
-          <p>Accounts, preferences and appearance for peekr.</p>
+          <p>Accounts, preferences and appearance.</p>
         </div>
       </header>
 

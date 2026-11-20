@@ -90,7 +90,7 @@
 .settings-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   flex-shrink: 0;
   height: 64px;
   padding: 0 24px 0 88px;
@@ -98,10 +98,31 @@
   border-bottom: 1px solid var(--border);
 }
 
+.settings-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .settings-logo {
   width: 24px;
   height: 24px;
   border-radius: 6px;
+}
+
+.settings-wordmark {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.settings-header-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-strong);
+  flex-shrink: 0;
 }
 
 .settings-header-text {
@@ -170,9 +191,15 @@
 }
 
 .settings-nav-item[aria-selected="true"] {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: transparent;
+  color: var(--text);
   font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.settings-nav-item--about[aria-selected="true"] {
+  box-shadow: none;
+  border-color: var(--accent);
 }
 
 .settings-nav-icon {
@@ -186,13 +213,13 @@
   background: var(--surface-hover);
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .settings-nav-item[aria-selected="true"] .settings-nav-count {
-  background: transparent;
-  color: var(--accent-ink);
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .settings-nav-item--about {
@@ -733,9 +760,10 @@
 }
 
 .about-brand h3 {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .about-brand p {
