@@ -3425,7 +3425,7 @@ checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "peekr"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "futures",
@@ -3449,7 +3449,6 @@ dependencies = [
  "tauri-nspanel",
  "tauri-plugin-autostart",
  "tauri-plugin-opener",
- "tauri-plugin-positioner",
  "tauri-plugin-single-instance",
  "thiserror 2.0.21",
  "tokio",
@@ -5181,21 +5180,6 @@ dependencies = [
  "url",
  "windows",
  "zbus 5.19.0",
-]
-
-[[package]]
-name = "tauri-plugin-positioner"
-version = "2.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcad1d07c6cd206c249976c3dbb57eda7f1fc62a25b25099c74345ab2d2e3ef6"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "serde_repr",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.21",
 ]
 
 [[package]]

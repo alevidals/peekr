@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-11-21
+
+### Fixed
+
+- The popover now opens inside the screen on Windows and Linux: it detects the edge the tray
+  icon is docked to (taskbar at the bottom, top, left or right), opens towards the centre,
+  sits flush against the bar and clamps itself to the work area. The entrance animation
+  follows that direction instead of always growing downwards.
+- The tray menu has an **Open peekr** item. On Linux the tray backend does not report clicks,
+  so this is the way to open the popover there.
 
 ## 0.2.0 — 2026-11-20
 

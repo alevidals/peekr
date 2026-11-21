@@ -6,6 +6,7 @@ import type {
   Appearance,
   AppInfo,
   Config,
+  PopoverPlacement,
   ProviderKind,
   PullRequest,
   Theme,
@@ -46,5 +47,5 @@ export const onPollError = (cb: (message: string) => void): Promise<UnlistenFn> 
 export const onPopoverWillHide = (cb: () => void): Promise<UnlistenFn> =>
   listen("popover-will-hide", () => cb());
 
-export const onPopoverWillShow = (cb: () => void): Promise<UnlistenFn> =>
-  listen("popover-will-show", () => cb());
+export const onPopoverWillShow = (cb: (placement: PopoverPlacement) => void): Promise<UnlistenFn> =>
+  listen<PopoverPlacement>("popover-will-show", (e) => cb(e.payload));

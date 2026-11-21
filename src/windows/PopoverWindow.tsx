@@ -37,7 +37,7 @@ export function PopoverWindow() {
     reloadConfig();
     closeSearch();
   }, [reloadConfig, closeSearch]);
-  const { animKey, closing } = usePopoverAnimation(onOpen);
+  const { animKey, closing, placement } = usePopoverAnimation(onOpen);
   const { prs: reviewPrs, mine, loading, error, lastFetched, refresh } = usePullRequests();
   const prs = tab === "review" ? reviewPrs : mine;
 
@@ -144,7 +144,10 @@ export function PopoverWindow() {
   }
 
   return (
-    <div ref={popoverRef} className={`popover${closing ? " popover--closing" : ""}`}>
+    <div
+      ref={popoverRef}
+      className={`popover popover--${placement}${closing ? " popover--closing" : ""}`}
+    >
       <header className="popover-header">
         <div className="popover-brand">
           <img className="popover-logo" src="/app-icon.png" alt="" />

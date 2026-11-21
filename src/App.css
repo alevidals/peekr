@@ -208,14 +208,16 @@ textarea:focus-visible {
   background: transparent;
 }
 
+/* The entrance slides away from the tray icon. The direction comes from the backend
+   (`--popover-enter-*`), so a popover above a bottom taskbar grows upwards. */
 @keyframes popover-in {
-  from { opacity: 0; transform: scale(0.94) translateY(-8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.94) translate(var(--popover-enter-x, 0px), var(--popover-enter-y, -8px)); }
+  to   { opacity: 1; transform: scale(1) translate(0, 0); }
 }
 
 @keyframes popover-out {
-  from { opacity: 1; transform: scale(1) translateY(0); }
-  to   { opacity: 0; transform: scale(0.94) translateY(-8px); }
+  from { opacity: 1; transform: scale(1) translate(0, 0); }
+  to   { opacity: 0; transform: scale(0.94) translate(var(--popover-enter-x, 0px), var(--popover-enter-y, -8px)); }
 }
 
 @keyframes spin {
@@ -280,7 +282,28 @@ textarea:focus-visible {
      up as a dark fill in the rounded corners. */
   overflow: hidden;
   animation: popover-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* Opens below the tray icon by default (macOS menu bar, top taskbar). */
+  --popover-enter-x: 0px;
+  --popover-enter-y: -8px;
   transform-origin: top center;
+}
+
+/* Direction reported by the backend, so the animation grows away from the icon. */
+.popover--above {
+  --popover-enter-y: 8px;
+  transform-origin: bottom center;
+}
+
+.popover--left {
+  --popover-enter-x: 8px;
+  --popover-enter-y: 0px;
+  transform-origin: right center;
+}
+
+.popover--right {
+  --popover-enter-x: -8px;
+  --popover-enter-y: 0px;
+  transform-origin: left center;
 }
 
 .popover--closing {

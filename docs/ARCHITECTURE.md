@@ -77,7 +77,7 @@ These are not architectural blockers, but they are not planned surface either.
 │      ├── tray (badge, tooltip, dev marker)                       │
 │      └── events: prs-updated, my-prs-updated, poll-error         │
 │                                                                  │
-│  popover module: NSPanel + positioner + hide generation guard    │
+│  popover module: NSPanel + tray-edge placement + hide guard      │
 │  secrets module: OS keychain, one entry per account              │
 │  config module: atomic JSON, migrations, corrupt-file backup     │
 └──────────────┬───────────────────────────────────────────────────┘
@@ -448,10 +448,12 @@ providers and resolves the token owner again.
 - `hides_on_deactivate(false)`;
 - `works_when_modal(true)`.
 
-The panel is positioned with `tauri-plugin-positioner` at
-`Position::TrayBottomCenter` before it becomes visible. A Space observer hides
-the panel when the user switches desktop or enters/leaves full screen, instead of
-joining the window to the new Space.
+The panel is positioned before it becomes visible: `popover/geometry.rs` takes
+the tray icon rectangle from the click event, finds the screen edge the icon is
+docked to and opens the window towards the inside of the work area, flipping
+above/below/left/right as needed and clamping to keep it fully on screen. A Space
+observer hides the panel when the user switches desktop or enters/leaves full
+screen, instead of joining the window to the new Space.
 
 Closing is a two-step sequence: emit `popover-will-hide`, wait 150 ms, then hide.
 A generation counter resolves the race between tray clicks and the blur handler;
@@ -459,7 +461,10 @@ a focus gain cancels an in-flight hide. `hide_popover` and tray toggle both use
 the same path.
 
 On Windows and Linux `configure_panel` is a no-op: the popover is a normal
-undecorated, always-on-top, non-resizable window positioned under the tray icon.
+undecorated, always-on-top, non-resizable window positioned next to the tray
+icon. The same geometry handles a taskbar docked at the bottom, top, left or
+right. Linux tray icons do not emit clicks through `libappindicator`, so the tray
+menu also has an **Open peekr** item.
 
 ### Settings window
 
@@ -559,8 +564,8 @@ accounts lose their tokens only after the new config has been written.
   `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420; object-src 'none'; base-uri 'self'`.
   The localhost entries support Vite development; they stay in the policy but
   are unused by a release build.
-- Plugins: opener, positioner, autostart, single-instance and log. No filesystem,
-  shell or arbitrary HTTP plugin.
+- Plugins: opener, autostart, single-instance and log. No filesystem, shell or
+  arbitrary HTTP plugin.
 - `macOSPrivateApi` is enabled for the panel. This is a distribution choice: the
   app is not sandboxed and is distributed outside the Mac App Store.
 - There is no updater yet. Updates will not be silently installed.

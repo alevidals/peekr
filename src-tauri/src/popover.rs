@@ -6,12 +6,14 @@
 //! generation counter: every close attempt bumps it, and the delayed hide only runs if no
 //! newer attempt (or focus gain) happened in the meantime.
 
+mod geometry;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use tauri::{App, AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
-use tauri_plugin_positioner::{Position, WindowExt};
+use geometry::Placement;
+use tauri::{App, AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow, WindowEvent};
 
 #[cfg(target_os = "macos")]
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
@@ -176,8 +178,11 @@ pub fn schedule_hide(window: &WebviewWindow) {
     });
 }
 
-/// Tray-icon click: open the popover under the icon, or close it if already visible.
-pub fn toggle(app: &AppHandle) {
+/// Tray-icon click: open the popover next to the icon, or close it if already visible.
+///
+/// `icon` is the tray icon rectangle from the click event. It tells us which screen edge the
+/// icon (and therefore the taskbar or menu bar) is on, so the window always opens inwards.
+pub fn toggle(app: &AppHandle, icon: Option<tauri::Rect>) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
@@ -191,15 +196,7 @@ pub fn toggle(app: &AppHandle) {
         return;
     }
 
-    // Position before the window becomes visible.
-    let _ = window.move_window(Position::TrayBottomCenter);
-    // On another Space or over a full-screen app, macOS may not deliver Focused(true)
-    // until the user clicks inside. Tell the UI to leave its closing state first, or the
-    // window stays showing the exit animation's final frame (fully transparent).
-    let _ = window.emit("popover-will-show", ());
-    // Fresh timestamp so the Space observer does not treat the show as a desktop switch.
-    app.state::<HideState>().mark_now();
-    show_focused(&window);
+    show_at(app, &window, icon);
 }
 
 /// Shows the popover without toggling it. Used when a second instance launches.
@@ -207,10 +204,80 @@ pub fn show(app: &AppHandle) {
     let Some(window) = app.get_webview_window(LABEL) else {
         return;
     };
-    let _ = window.move_window(Position::TrayBottomCenter);
-    let _ = window.emit("popover-will-show", ());
+    show_at(app, &window, crate::tray::icon_rect(app));
+}
+
+/// Moves the window next to the icon, tells the UI which side it opened on, then shows it.
+fn show_at(app: &AppHandle, window: &WebviewWindow, icon: Option<tauri::Rect>) {
+    // Position before the window becomes visible.
+    let placement = move_next_to_tray(window, icon).unwrap_or_default();
+    // On another Space or over a full-screen app, macOS may not deliver Focused(true)
+    // until the user clicks inside. Tell the UI to leave its closing state first, or the
+    // window stays showing the exit animation's final frame (fully transparent).
+    let _ = window.emit("popover-will-show", placement);
+    // Fresh timestamp so the Space observer does not treat the show as a desktop switch.
     app.state::<HideState>().mark_now();
-    show_focused(&window);
+    show_focused(window);
+}
+
+/// Places the popover against the screen edge the tray icon is docked to.
+///
+/// Returns the side it opened on, for the entrance animation, or `None` when the icon
+/// rectangle is unknown (Linux, where tray icons report no position): the window then keeps
+/// its previous position, which is always on screen.
+fn move_next_to_tray(window: &WebviewWindow, icon: Option<tauri::Rect>) -> Option<Placement> {
+    let icon = icon?;
+    let size = window.outer_size().ok()?;
+    let position = icon.position.to_physical::<f64>(1.0);
+    let icon_size = icon.size.to_physical::<u32>(1.0);
+
+    // The tray icon can be on any monitor; look it up by the icon's own centre.
+    let center = (
+        position.x + icon_size.width as f64 / 2.0,
+        position.y + icon_size.height as f64 / 2.0,
+    );
+    let monitor = window
+        .monitor_from_point(center.0, center.1)
+        .ok()
+        .flatten()
+        .or_else(|| window.current_monitor().ok().flatten())
+        .or_else(|| window.primary_monitor().ok().flatten())?;
+
+    let monitor_position = *monitor.position();
+    let monitor_size = *monitor.size();
+    let work_area = monitor.work_area();
+
+    let icon_rect = geometry::Rect::new(
+        position.x.round() as i32,
+        position.y.round() as i32,
+        icon_size.width as i32,
+        icon_size.height as i32,
+    );
+    let window_rect = geometry::Rect::new(0, 0, size.width as i32, size.height as i32);
+    let monitor_rect = geometry::Rect::new(
+        monitor_position.x,
+        monitor_position.y,
+        monitor_size.width as i32,
+        monitor_size.height as i32,
+    );
+    let work_rect = geometry::Rect::new(
+        work_area.position.x,
+        work_area.position.y,
+        work_area.size.width as i32,
+        work_area.size.height as i32,
+    );
+
+    let (target, placement) = geometry::place(
+        icon_rect,
+        window_rect,
+        monitor_rect,
+        work_rect,
+        monitor.scale_factor(),
+    );
+    if let Err(e) = window.set_position(PhysicalPosition::new(target.x, target.y)) {
+        log::warn!("[popover] could not move the window next to the tray icon: {e}");
+    }
+    Some(placement)
 }
 
 /// Converts the configured window into a non-activating `NSPanel` and lets it join every

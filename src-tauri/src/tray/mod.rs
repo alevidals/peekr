@@ -10,9 +10,19 @@ use crate::popover;
 
 const TRAY_ID: &str = "main";
 
+/// The tray icon's current rectangle, used to place the popover when it is opened without a
+/// click event (a second instance launching). Linux reports no rectangle.
+pub(crate) fn icon_rect(app: &AppHandle) -> Option<tauri::Rect> {
+    app.tray_by_id(TRAY_ID)?.rect().ok().flatten()
+}
+
 pub fn create_tray(app: &tauri::App) -> tauri::Result<()> {
+    // Linux tray icons (libappindicator) do not emit click events, so the menu is the only
+    // way to open the popover there. Keeping the item on every platform also gives the
+    // right-click menu a way to bring the popover back.
+    let open = MenuItem::with_id(app, "open", "Open peekr", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit peekr", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&quit])?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
 
     // On macOS the image is a template, so macOS tints the eye from the menu bar background.
     #[cfg(target_os = "macos")]
@@ -27,20 +37,21 @@ pub fn create_tray(app: &tauri::App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .tooltip(if badge::DEV { "peekr (dev)" } else { "peekr" })
         .on_menu_event(|app, event| {
-            if event.id() == "quit" {
+            if event.id() == "open" {
+                popover::show(app);
+            } else if event.id() == "quit" {
                 app.exit(0);
             }
         })
         .on_tray_icon_event(|tray, event| {
-            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
-
             if let TrayIconEvent::Click {
+                rect,
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
             } = event
             {
-                popover::toggle(tray.app_handle());
+                popover::toggle(tray.app_handle(), Some(rect));
             }
         })
         .build(app)?;

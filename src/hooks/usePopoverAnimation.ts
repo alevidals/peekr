@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onPopoverWillHide, onPopoverWillShow } from "../api";
+import type { PopoverPlacement } from "../types";
 
 /**
  * Drives the open/close animation: `animKey` changes each time the popover is shown (to
- * restart the CSS animation) and `closing` is set when the backend announces it will hide.
- * `onOpen` runs on every show.
+ * restart the CSS animation), `closing` is set when the backend announces it will hide, and
+ * `placement` is the side of the tray icon the window opened on, so the animation grows away
+ * from the icon instead of always downwards. `onOpen` runs on every show.
  */
 export function usePopoverAnimation(onOpen?: () => void) {
   const [animKey, setAnimKey] = useState(0);
   const [closing, setClosing] = useState(false);
+  const [placement, setPlacement] = useState<PopoverPlacement>("below");
   // Kept in a ref so the listeners subscribe once even if `onOpen` is unstable.
   const onOpenRef = useRef(onOpen);
 
@@ -18,10 +21,11 @@ export function usePopoverAnimation(onOpen?: () => void) {
   }, [onOpen]);
 
   useEffect(() => {
-    const unlisten = onPopoverWillShow(() => {
+    const unlisten = onPopoverWillShow((nextPlacement) => {
       // Explicit show notification: focus may never arrive here (another Space,
       // full-screen app), so the closing state cannot depend on it.
       setClosing(false);
+      setPlacement(nextPlacement);
       setAnimKey((k) => k + 1);
       onOpenRef.current?.();
     });
@@ -48,5 +52,5 @@ export function usePopoverAnimation(onOpen?: () => void) {
     };
   }, []);
 
-  return { animKey, closing };
+  return { animKey, closing, placement };
 }

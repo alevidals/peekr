@@ -24,8 +24,10 @@ positioning and ordinary always-on-top windows.
    - `full_screen_auxiliary` and `move_to_active_space`;
    - `hides_on_deactivate(false)`;
    - `works_when_modal(true)`.
-3. **Position through the plugin.** `tauri-plugin-positioner` moves the window to
-   `TrayBottomCenter` before it becomes visible.
+3. **Position against the tray edge.** A small geometry module reads the icon
+   rectangle from the tray event, detects which screen edge it is docked to
+   (taskbar at the bottom, top, left or right), opens towards the centre of the
+   work area and clamps the window so it is always fully visible.
 4. **Space observer.** An `NSWorkspace` observer hides the panel when the user
    switches Space or enters/leaves full screen, instead of dragging it along.
 5. **Two-step close.** Emit `popover-will-hide`, wait 150 ms for the exit

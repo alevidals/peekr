@@ -23,8 +23,8 @@ Use:
   rendering and notifications.
 - **`reqwest` + rustls** behind one shared client.
 - **`keyring` 4.2.0** for tokens.
-- **`tauri-plugin-opener`** for PR URLs and token pages, and
-  **`tauri-plugin-positioner`** for tray placement.
+- **`tauri-plugin-opener`** for PR URLs and token pages, and a small geometry
+  module for placing the popover next to the tray icon.
 - **`tauri-plugin-autostart`** for launch at login.
 
 ## Consequences
@@ -57,6 +57,6 @@ Use:
 ## Notes
 
 - No Tauri `fs`, `shell` or `http` plugins. The webview gets only opener,
-  positioner, autostart and minimal core window capabilities.
+  autostart and minimal core window capabilities.
 - The app is distributed outside app stores, which is why the macOS private API
   used by the panel is acceptable.

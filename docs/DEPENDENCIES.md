@@ -51,7 +51,6 @@ windows.
 | `tauri`                     | 2.12.7    | Desktop shell, tray, windows     | MIT/Apache-2.0 | Features: tray-icon, image-png, macOS private API                     |
 | `tauri-build`               | 2.7.6     | Build script                     | MIT/Apache-2.0 | Generates context and permissions                                     |
 | `tauri-plugin-opener`       | 2.7.3     | Open PR URLs and log folder      | MIT/Apache-2.0 | Only provider-supplied URLs                                           |
-| `tauri-plugin-positioner`   | 2.4.0     | Position the popover under tray  | MIT/Apache-2.0 | `tray-icon` feature                                                   |
 | `tauri-plugin-autostart`    | 2.7.0     | Launch at login                  | MIT/Apache-2.0 | LaunchAgent on macOS, registry on Windows, XDG entry on Linux          |
 | `tauri-plugin-single-instance` | 2.5.5  | Keep one tray process            | MIT/Apache-2.0 | A second launch shows the existing popover                            |
 | `tracing`                   | 0.1.44    | Structured logging               | MIT            | Bridges the existing `log` records                                     |

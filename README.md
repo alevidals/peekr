@@ -167,8 +167,8 @@ follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues through
 ## Stack
 
 Tauri 2 · React 19 · TypeScript · Vite · Rust · Tokio · reqwest · keyring ·
-`tauri-plugin-positioner` · `tauri-plugin-single-instance` · `tracing` ·
-`tauri-nspanel` · `mac-notification-sys` / `notify-rust` · ESLint · Vitest
+`tauri-plugin-single-instance` · `tracing` · `tauri-nspanel` ·
+`mac-notification-sys` / `notify-rust` · ESLint · Vitest
 
 ## License
 

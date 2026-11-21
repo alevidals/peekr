@@ -2,6 +2,9 @@ export type ProviderKind = "bitbucket" | "github";
 
 export type Theme = "system" | "light" | "dark";
 
+/** Side of the tray icon the popover opened on. */
+export type PopoverPlacement = "above" | "below" | "left" | "right";
+
 export type CiStatus = "success" | "failed" | "pending";
 
 export type MergeState = "ready" | "waiting" | "blocked" | "conflicts" | "behind" | "draft" | "unknown";
