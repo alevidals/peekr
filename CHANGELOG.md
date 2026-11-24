@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.0 — 2026-11-24
+
+### Added
+
+- **Settings → General → Review list → Show approved pull requests** keeps the PRs
+  you already approved in the review tab. They are marked **Approved**, sorted
+  after the pending rows, and never count towards the tray badge or a "new review
+  request" notification. Off by default. On GitHub this adds a
+  `reviewed-by:@me review:approved` search and keeps the PRs whose latest
+  opinionated review by you is an approval; on Bitbucket it keeps the approvals
+  the queue used to hide.
+- **Settings → General → Notifications** switches for new review requests, ready
+  to merge and failing checks. All three are on by default. Muting one keeps the
+  event out of your desktop without replaying it when you turn it back on.
+- General settings now groups polling, startup, the review list and
+  notifications, and **Cancel** restores polling and the new switches too.
+
+### Changed
+
+- `imageproc` 0.27 without its default features. The tray badge only draws a
+  circle; the defaults pulled unused image codecs, rayon and two unmaintained
+  crates (`paste`, `ttf-parser`).
+
+### Fixed
+
+- Bitbucket reported the same blocked condition twice: the `changes_requested`
+  participant and the `no_changes_requested` merge check. The check kind was
+  rendered verbatim ("No changes requested"), which read as the opposite of the
+  blocker and inflated the count. Both now collapse into one "Changes requested"
+  blocker.
+
+### Security
+
+- `cookie` 0.18.3 for RUSTSEC-2026-0594 (private cookie nonces could repeat in
+  processes that fork).
+- `url` 2.5.9 for RUSTSEC-2026-0592 (stack overflow in `Url::origin()` on nested
+  `blob:` URLs).
+- Documented the accepted upstream advisories in `src-tauri/.cargo/audit.toml`
+  (`chrono`, the zbus 5 line behind keyring, `proc-macro-error`), leaving the
+  glib unsoundness visible until Tauri leaves gtk 0.18.
+
 ## 0.2.1 — 2026-11-21
 
 ### Fixed
