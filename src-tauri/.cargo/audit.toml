@@ -4,4 +4,20 @@
 # explains why it does not apply and what would remove it. Empty means no
 # advisory is currently accepted.
 [advisories]
-ignore = []
+ignore = [
+    # chrono is an optional dependency of serde_with and its feature stays off,
+    # so the crate is resolved in Cargo.lock but never compiled.
+    "RUSTSEC-2026-0543",
+    # The zbus 5 line is unmaintained. It reaches Linux only through keyring's
+    # zbus-secret-service-keyring-store, which still pins secret-service 5.
+    # Remove these when that store moves to secret-service 6 / zbus 6.
+    "RUSTSEC-2026-0370", # zvariant
+    "RUSTSEC-2026-0371", # zbus_names
+    "RUSTSEC-2026-0372", # zvariant_derive
+    # proc-macro-error is unmaintained and build-time only; glib-macros 0.18
+    # (GTK3) pulls it. It disappears with the gtk 0.19 line.
+    "RUSTSEC-2024-0370",
+]
+# RUSTSEC-2024-0429 (glib 0.18 unsoundness) is deliberately not ignored: it is
+# the reminder to revisit the GTK stack once Tauri and tray-icon move past
+# gtk 0.18. It is a warning, so it does not fail the job.
