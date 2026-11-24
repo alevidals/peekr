@@ -63,7 +63,7 @@ export function PopoverWindow() {
   );
 
   // The header badges need three counts from the same lists: one pass instead of three.
-  const { draftCount, hasCi, readyCount } = useMemo(() => {
+  const { draftCount, hasCi, readyCount, pendingReview } = useMemo(() => {
     let drafts = 0;
     let ci = false;
     for (const pr of prs) {
@@ -72,8 +72,9 @@ export function PopoverWindow() {
     }
     let ready = 0;
     for (const pr of mine) if (pr.merge?.state === "ready") ready++;
-    return { draftCount: drafts, hasCi: ci, readyCount: ready };
-  }, [prs, mine]);
+    const pending = reviewPrs.filter((pr) => !pr.approved_by_me).length;
+    return { draftCount: drafts, hasCi: ci, readyCount: ready, pendingReview: pending };
+  }, [prs, mine, reviewPrs]);
 
   // The eye shows whether drafts are currently visible; the title names the action.
   const DraftIcon = hideDraft ? IconEyeOff : IconEye;
@@ -212,7 +213,18 @@ export function PopoverWindow() {
             onKeyDown={onTabKeyDown}
           >
             To review
-            {reviewPrs.length > 0 && <span className="pr-count">{reviewPrs.length > 99 ? "99+" : reviewPrs.length}</span>}
+            {reviewPrs.length > 0 && (
+              <span
+                className="pr-count"
+                title={
+                  pendingReview < reviewPrs.length
+                    ? `${pendingReview} pending review`
+                    : undefined
+                }
+              >
+                {reviewPrs.length > 99 ? "99+" : reviewPrs.length}
+              </span>
+            )}
           </button>
           <button
             id="tab-mine"

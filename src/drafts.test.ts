@@ -6,7 +6,14 @@ import {
   isDraftComplete,
   parseRepos,
 } from "./drafts";
-import type { Config } from "./types";
+import type { Config, NotificationSettings, ReviewQueueSettings } from "./types";
+
+const NOTIFICATIONS: NotificationSettings = {
+  new_review_request: true,
+  merge_ready: true,
+  checks_failed: true,
+};
+const REVIEW_QUEUE: ReviewQueueSettings = { show_approved: false };
 
 describe("drafts", () => {
   it("trims repository lines and drops empties", () => {
@@ -42,6 +49,8 @@ describe("drafts", () => {
         density: "comfortable",
         text_size: "medium",
       },
+      review_queue: REVIEW_QUEUE,
+      notifications: NOTIFICATIONS,
       accounts: [
         {
           id: "saved",
@@ -75,6 +84,8 @@ describe("drafts", () => {
         density: "comfortable",
         text_size: "medium",
       },
+      review_queue: REVIEW_QUEUE,
+      notifications: NOTIFICATIONS,
       accounts: [],
     });
 

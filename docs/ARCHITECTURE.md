@@ -287,7 +287,9 @@ must not hide the others, and its previously known PRs must not look closed.
   When it fails, the adapter falls back to a client-side inference from build
   statuses, approvals, requested changes and open tasks. The fallback cannot see
   merge conflicts.
-- Hides PRs the user already approved.
+- Hides PRs the user already approved unless **General → Show approved
+  pull requests** is enabled; approved rows stay out of the badge and new-request
+  notifications.
 - Fans out with at most 8 requests in flight per account, enforced by a
   semaphore. This is a real cap across repositories and PRs, not just a buffering
   hint.
@@ -296,7 +298,11 @@ must not hide the others, and its previously known PRs must not look closed.
 
 - GraphQL API at `https://api.github.com/graphql`.
 - Review requests: one paginated search with `is:pr is:open review-requested:@me`,
-  scoped to the account owner. Team review requests are included.
+  scoped to the account owner. Team review requests are included. With **Show
+  approved** enabled, a second search (`is:pr is:open reviewed-by:@me review:approved`) keeps the
+  PRs whose latest opinionated review by the viewer is `APPROVED`; PRs already
+  pending are de-duped
+  and stay pending.
 - Own PRs: `author:@me`, scoped the same way.
 - The search node carries branches, comment count, reviews, the check rollup and
   `mergeStateStatus`, so no per-PR request is needed.
@@ -502,7 +508,8 @@ manual update check.
 
 ```text
 <app config dir>/com.alevidals.peekr/
-  config.json        # version, polling interval, accounts, theme, appearance
+  config.json        # version, polling interval, accounts, theme, appearance,
+                     # review queue and notification preferences
   config.json.bak    # previous unreadable file, if recovery happened
   config.json.tmp    # transient atomic-write file
 
@@ -520,8 +527,8 @@ manual update check.
   - `accounts` present → parse as v2. Otherwise migrate v1: read the legacy
     token from the file or the keychain, create one Bitbucket account, store the
     token, save, and delete the legacy keychain entry.
-- Missing fields after v2 (`theme`, `appearance`) use serde defaults, so older
-  files keep loading.
+- Missing fields after v2 (`theme`, `appearance`, `review_queue`, `notifications`)
+  use serde defaults, so older files keep loading.
 - The polling interval is clamped to 30–3600 seconds on load and on save.
 - A corrupt file is renamed to `config.json.bak` and the app starts with
   defaults. It is never silently overwritten.

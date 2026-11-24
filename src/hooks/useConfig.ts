@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getConfig } from "../api";
 import { applyAppearance } from "../theme";
-import { DEFAULT_APPEARANCE, type Config } from "../types";
+import { DEFAULT_APPEARANCE, DEFAULT_NOTIFICATIONS, DEFAULT_REVIEW_QUEUE, type Config } from "../types";
 
 const FALLBACK_CONFIG: Config = {
   polling_interval_secs: 120,
   theme: "system",
   appearance: DEFAULT_APPEARANCE,
+  review_queue: DEFAULT_REVIEW_QUEUE,
+  notifications: DEFAULT_NOTIFICATIONS,
   accounts: [],
 };
 

@@ -92,6 +92,9 @@ result.
 - [ ] Approval count, comment count and CI state render for both providers.
 - [ ] Draft PRs show the badge and can be hidden with the drafts filter.
 - [ ] The "only passing" filter hides PRs whose checks are not green.
+- [ ] Approved PRs are hidden by default. With **Show approved pull requests**
+      on, they appear marked **Approved**, after the pending rows, and the tray
+      badge still counts only the pending ones.
 - [ ] Search matches title, author, repo, source branch, destination branch and
       `#number`; multiple terms are ANDed.
 - [ ] Closing search clears the query immediately.
@@ -123,6 +126,8 @@ result.
 - [ ] The first successful poll of an account produces no notification flood.
 - [ ] Clicking a notification opens the correct PR in the browser.
 - [ ] Notification text uses provider vocabulary: checks vs pipelines.
+- [ ] Turning a notification kind off in Settings suppresses only that event,
+      and turning it back on does not replay old events.
 - [ ] A PR that disappears for one poll and returns is not announced twice.
 - [ ] Notifications appear with the app in the background.
 - [ ] macOS: a packaged build is attributed to peekr, not Terminal.
@@ -137,6 +142,10 @@ result.
 - [ ] Clearing the polling field does not save an invalid value.
 - [ ] Launch at login can be enabled and disabled, and the change survives a
       restart.
+- [ ] **General → Show approved pull requests** persists, triggers a poll and
+      stops approved PRs from counting in the badge when turned off.
+- [ ] The three **Notifications** switches persist and default to on for a config
+      written before they existed.
 - [ ] **Open logs** in About reveals the log directory and the current log is readable.
 - [ ] The log contains no tokens and has a bounded size.
 - [ ] **Check for updates** in About with the current version says it is up to date.

@@ -51,9 +51,9 @@ approvals, requested changes and open tasks.
 |                                       |                                                                                                                                                     |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Two providers, many accounts**      | Bitbucket Cloud and GitHub, each with any number of workspaces or organisations. A PR seen through two accounts is listed, counted and notified once. |
-| **An inbox, not a dashboard**         | Only PRs still waiting on you: Bitbucket hides the ones you already approved, and GitHub drops a PR from `review-requested:@me` once you review it.  |
+| **An inbox, not a dashboard**         | Only PRs still waiting on you by default: Bitbucket hides the ones you already approved, and GitHub drops a PR from `review-requested:@me` once you review it. You can opt in to keeping your approvals. |
 | **My PRs with an honest verdict**     | GitHub's `mergeStateStatus` follows branch protection. Bitbucket uses mergeability checks when available and labels the fallback inference "Looks ready". |
-| **Notifications that point somewhere** | One notification per new request or readiness change, and clicking it opens that exact PR. The first poll of an account never floods the user.        |
+| **Notifications that point somewhere** | One notification per new request or readiness change, and clicking it opens that exact PR. Each event can be muted, and the first poll of an account never floods the user.        |
 | **A native macOS popover**            | A non-activating panel that opens over full-screen apps and on any Space, keeps keyboard focus and closes on `Esc` or a click outside.              |
 | **Themes that belong here**           | System, light and dark, plus One Dark, Gruvbox, Nord, Dracula, Solarized, Tokyo Night and Catppuccin, with density and text-size controls.          |
 | **Tokens stay in the keychain**       | Access tokens live in the OS credential store. `config.json` and logs never contain them, and the webview never receives a stored token back.        |

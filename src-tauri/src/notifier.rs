@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::domain::{CiStatus, ProviderKind, PullRequest};
+use crate::{
+    config::Notifications,
+    domain::{CiStatus, ProviderKind, PullRequest},
+};
 
 /// PRs in `current` that were not in `previous`.
 pub fn newly_added<'a>(
@@ -22,6 +25,14 @@ pub fn newly_added<'a>(
 pub enum MyPrEvent {
     BecameReady,
     ChecksFailed,
+}
+
+/// Whether the user wants a desktop notification for this event.
+pub fn event_enabled(event: MyPrEvent, prefs: &Notifications) -> bool {
+    match event {
+        MyPrEvent::BecameReady => prefs.merge_ready,
+        MyPrEvent::ChecksFailed => prefs.checks_failed,
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -209,6 +220,7 @@ mod tests {
             comment_count: 0,
             html_url: String::new(),
             draft: false,
+            approved_by_me: false,
             approvals: 0,
             ci_status: None,
             merge: None,
@@ -303,6 +315,17 @@ mod tests {
             event_title(&github, &MyPrEvent::ChecksFailed),
             "Checks failed"
         );
+    }
+
+    #[test]
+    fn respects_notification_preferences() {
+        let mut prefs = Notifications::default();
+        assert!(event_enabled(MyPrEvent::BecameReady, &prefs));
+        assert!(event_enabled(MyPrEvent::ChecksFailed, &prefs));
+
+        prefs.merge_ready = false;
+        assert!(!event_enabled(MyPrEvent::BecameReady, &prefs));
+        assert!(event_enabled(MyPrEvent::ChecksFailed, &prefs));
     }
 
     #[test]

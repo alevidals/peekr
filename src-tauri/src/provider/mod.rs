@@ -35,8 +35,13 @@ pub trait ReviewProvider: Send + Sync {
     /// Checks the token and returns an identifier of the authenticated user.
     async fn validate(&self) -> AppResult<String>;
 
-    /// Open PRs in `repos` where the authenticated user is a requested reviewer.
-    async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport>;
+    /// Open PRs in `repos` where the authenticated user is a requested reviewer. When
+    /// `include_approved` is true, PRs the user already approved are kept too.
+    async fn fetch_review_prs(
+        &self,
+        repos: &[String],
+        include_approved: bool,
+    ) -> AppResult<FetchReport>;
 
     /// Open PRs authored by the authenticated user, each with its [`MergeStatus`].
     async fn fetch_my_prs(&self, repos: &[String]) -> AppResult<FetchReport>;

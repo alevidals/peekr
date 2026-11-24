@@ -107,6 +107,34 @@ impl Appearance {
     }
 }
 
+/// Which PRs the review tab keeps beyond the ones still waiting on the user.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ReviewQueue {
+    /// Keep PRs the user already approved. They never count towards the tray badge and do
+    /// not trigger "new review request" notifications.
+    pub show_approved: bool,
+}
+
+/// Desktop notifications the poller may send. Every event is on unless the user opts out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Notifications {
+    pub new_review_request: bool,
+    pub merge_ready: bool,
+    pub checks_failed: bool,
+}
+
+impl Default for Notifications {
+    fn default() -> Self {
+        Self {
+            new_review_request: true,
+            merge_ready: true,
+            checks_failed: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub version: u32,
@@ -117,6 +145,10 @@ pub struct AppConfig {
     pub theme: Theme,
     #[serde(default)]
     pub appearance: Appearance,
+    #[serde(default)]
+    pub review_queue: ReviewQueue,
+    #[serde(default)]
+    pub notifications: Notifications,
 }
 
 impl Default for AppConfig {
@@ -127,6 +159,8 @@ impl Default for AppConfig {
             accounts: Vec::new(),
             theme: Theme::default(),
             appearance: Appearance::default(),
+            review_queue: ReviewQueue::default(),
+            notifications: Notifications::default(),
         }
     }
 }
@@ -370,6 +404,27 @@ mod tests {
         assert!(serde_json::to_string(&appearance)
             .unwrap()
             .contains("\"catppuccinMocha\""));
+    }
+
+    #[test]
+    fn review_queue_and_notification_defaults() {
+        let old: AppConfig =
+            serde_json::from_str(r#"{"version":2,"polling_interval_secs":60,"accounts":[]}"#)
+                .unwrap();
+        assert!(!old.review_queue.show_approved);
+        assert_eq!(old.notifications, Notifications::default());
+        assert!(old.notifications.new_review_request);
+
+        let partial: AppConfig = serde_json::from_str(
+            r#"{"version":2,"polling_interval_secs":60,"accounts":[],
+                "review_queue":{"show_approved":true},
+                "notifications":{"checks_failed":false}}"#,
+        )
+        .unwrap();
+        assert!(partial.review_queue.show_approved);
+        assert!(partial.notifications.new_review_request);
+        assert!(partial.notifications.merge_ready);
+        assert!(!partial.notifications.checks_failed);
     }
 
     #[test]

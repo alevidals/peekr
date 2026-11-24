@@ -6,9 +6,11 @@ import type {
   Appearance,
   AppInfo,
   Config,
+  NotificationSettings,
   PopoverPlacement,
   ProviderKind,
   PullRequest,
+  ReviewQueueSettings,
   Theme,
   UpdateStatus,
 } from "./types";
@@ -20,8 +22,20 @@ export const saveConfig = (
   pollingIntervalSecs: number,
   theme: Theme,
   appearance: Appearance,
+  reviewQueue: ReviewQueueSettings,
+  notifications: NotificationSettings,
   accounts: AccountInput[]
-) => invoke<void>("save_config", { pollingIntervalSecs, theme, appearance, accounts });
+) =>
+  invoke<void>("save_config", {
+    preferences: {
+      polling_interval_secs: pollingIntervalSecs,
+      theme,
+      appearance,
+      review_queue: reviewQueue,
+      notifications,
+    },
+    accounts,
+  });
 
 export const validateCredentials = (kind: ProviderKind, accountId?: string, token?: string) =>
   invoke<string>("validate_credentials", { kind, accountId, token });

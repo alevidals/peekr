@@ -9,6 +9,8 @@
 //! for the *required* checks and reviews of the branch protection), so no rule is reimplemented
 //! here.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use reqwest::RequestBuilder;
 use serde::Deserialize;
@@ -25,6 +27,9 @@ const API: &str = "https://api.github.com";
 /// Search never returns more than 1000 results.
 const MAX_PAGES: usize = 10;
 const REVIEW_SCOPE: &str = "is:pr is:open review-requested:@me";
+/// PRs the user reviewed. Only those whose latest review by the viewer is APPROVED are kept,
+/// because `review-requested:@me` stops returning a PR once the user reviews it.
+const REVIEWED_SCOPE: &str = "is:pr is:open reviewed-by:@me review:approved";
 
 pub struct Github {
     client: reqwest::Client,
@@ -132,14 +137,50 @@ impl ReviewProvider for Github {
         })
     }
 
-    async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
+    async fn fetch_review_prs(
+        &self,
+        repos: &[String],
+        include_approved: bool,
+    ) -> AppResult<FetchReport> {
         // The search spans every owner the token can see; `in_scope` keeps this account's.
-        let nodes = self.search(REVIEW_SCOPE).await?;
+        let pending = self.search(REVIEW_SCOPE).await?;
+        let mut prs = self.to_prs(pending, repos, false);
+        // A PR that is currently requested is pending even if an older review was an approval.
+        for pr in &mut prs {
+            pr.approved_by_me = false;
+        }
+
+        if include_approved {
+            let login = self.login().await?;
+            // Best effort: losing the approved history must not hide the pending queue.
+            match self.search(REVIEWED_SCOPE).await {
+                Ok(reviewed) => {
+                    let approved: Vec<GqlPull> = reviewed
+                        .into_iter()
+                        .filter(|node| node.approved_by(login))
+                        .collect();
+                    let mut extra = self.to_prs(approved, repos, false);
+                    // The search filter already established the viewer's approval.
+                    for pr in &mut extra {
+                        pr.approved_by_me = true;
+                    }
+                    append_new_prs(&mut prs, extra);
+                }
+                Err(e) => log::warn!("Could not load approved PRs: {}", e.detail()),
+            }
+        }
+
         Ok(FetchReport {
-            prs: self.to_prs(nodes, repos, false),
+            prs,
             failed_repos: Vec::new(),
         })
     }
+}
+
+/// Appends only PRs whose key is not already in `target`; pending rows win over approved ones.
+fn append_new_prs(target: &mut Vec<PullRequest>, extra: Vec<PullRequest>) {
+    let seen: HashSet<String> = target.iter().map(PullRequest::key).collect();
+    target.extend(extra.into_iter().filter(|pr| !seen.contains(&pr.key())));
 }
 
 /// Whether `full_name` (`owner/name`) belongs to the account: same owner and, if `repos` is
@@ -178,7 +219,7 @@ query($q: String!, $cursor: String) {
         mergeStateStatus
         # Approvals above 20 and checks above 20 are rare, and every nested node costs
         # rate-limit points: the rollup state still reports the aggregate.
-        latestOpinionatedReviews(first: 20) { nodes { state } }
+        latestOpinionatedReviews(first: 20) { nodes { state author { login } } }
         commits(last: 1) {
           nodes {
             commit {
@@ -304,6 +345,12 @@ struct GqlNodes<T> {
 #[derive(Debug, Deserialize)]
 struct GqlReview {
     state: String,
+    author: Option<GqlReviewAuthor>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GqlReviewAuthor {
+    login: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -408,6 +455,21 @@ fn assess(pull: &GqlPull, rollup: Option<&GqlRollup>) -> MergeStatus {
 }
 
 impl GqlPull {
+    /// Whether this PR has a current approval from `login`. Uses the latest opinionated review
+    /// per reviewer, so a later plain comment does not erase an earlier approval.
+    fn approved_by(&self, login: &str) -> bool {
+        self.latest_opinionated_reviews
+            .iter()
+            .flat_map(|reviews| &reviews.nodes)
+            .any(|review| {
+                review.state == "APPROVED"
+                    && review
+                        .author
+                        .as_ref()
+                        .is_some_and(|author| author.login.eq_ignore_ascii_case(login))
+            })
+    }
+
     /// `include_merge` is false for PRs the user only reviews: peekr shows merge readiness only
     /// for their own PRs, and another author's blockers are not actionable here.
     fn into_pr(self, account_id: &str, include_merge: bool) -> PullRequest {
@@ -455,6 +517,7 @@ impl GqlPull {
                 .unwrap_or(self.comments.total_count),
             html_url: self.url,
             draft: self.is_draft,
+            approved_by_me: false,
             approvals,
             ci_status,
             merge,
@@ -494,7 +557,9 @@ mod tests {
                 "author":{{"login":"me","name":"Me","avatarUrl":"av"}},
                 "totalCommentsCount":9,"comments":{{"totalCount":4}},
                 "reviewDecision":{},"mergeable":"MERGEABLE","mergeStateStatus":"{merge_state}",
-                "latestOpinionatedReviews":{{"nodes":[{{"state":"APPROVED"}},{{"state":"CHANGES_REQUESTED"}}]}},
+                "latestOpinionatedReviews":{{"nodes":[
+                    {{"state":"APPROVED","author":{{"login":"alice"}}}},
+                    {{"state":"CHANGES_REQUESTED","author":{{"login":"bob"}}}}]}},
                 "commits":{{"nodes":[{{"commit":{{"statusCheckRollup":{rollup}}}}}]}}}}"#,
             review_decision.map_or("null".to_string(), |d| format!("\"{d}\"")),
         );
@@ -543,6 +608,35 @@ mod tests {
         let pr = gql_pull("CLEAN", None, PASSING).into_pr("acc", false);
         assert!(pr.merge.is_none());
         assert_eq!(pr.ci_status, Some(CiStatus::Success));
+    }
+
+    #[test]
+    fn approved_by_matches_the_reviewer() {
+        let pull = gql_pull("CLEAN", None, PASSING);
+        assert!(pull.approved_by("alice"));
+        assert!(pull.approved_by("ALICE"));
+        assert!(!pull.approved_by("bob"));
+        assert!(!pull.approved_by("nobody"));
+    }
+
+    #[test]
+    fn approved_search_does_not_duplicate_pending_prs() {
+        let mut pending = gql_pull("CLEAN", None, PASSING).into_pr("acc", false);
+        pending.number = 1;
+        let duplicate = PullRequest {
+            approved_by_me: true,
+            ..pending.clone()
+        };
+        let mut approved = gql_pull("CLEAN", None, PASSING).into_pr("acc", false);
+        approved.number = 2;
+        approved.approved_by_me = true;
+
+        let mut prs = vec![pending];
+        append_new_prs(&mut prs, vec![duplicate, approved]);
+
+        assert_eq!(prs.len(), 2);
+        assert!(!prs[0].approved_by_me);
+        assert!(prs[1].approved_by_me);
     }
 
     #[test]

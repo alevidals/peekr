@@ -101,6 +101,10 @@ pub struct PullRequest {
     pub comment_count: u32,
     pub html_url: String,
     pub draft: bool,
+    /// The authenticated user approved this PR. Only review-queue PRs can be approved;
+    /// own PRs carry it for completeness.
+    #[serde(default)]
+    pub approved_by_me: bool,
     /// Number of approvals; 0 when unknown.
     #[serde(default)]
     pub approvals: u32,

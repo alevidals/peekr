@@ -17,6 +17,7 @@ const pr: PullRequest = {
   comment_count: 0,
   html_url: "https://example.test",
   draft: false,
+  approved_by_me: false,
   approvals: 0,
   ci_status: null,
   merge: null,

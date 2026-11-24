@@ -286,6 +286,19 @@
   gap: 10px;
 }
 
+.settings-group-title {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.settings-group-title:first-child {
+  margin-top: 0;
+}
+
 .card {
   border: 1px solid var(--border);
   border-radius: var(--radius);

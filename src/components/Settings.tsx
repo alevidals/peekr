@@ -5,8 +5,12 @@ import { getConfig, saveConfig, validateCredentials } from "../api";
 import { applyAppearance } from "../theme";
 import {
   DEFAULT_APPEARANCE,
+  DEFAULT_NOTIFICATIONS,
+  DEFAULT_REVIEW_QUEUE,
   type Appearance,
   type Density,
+  type NotificationSettings,
+  type ReviewQueueSettings,
   type TextSize,
   type Theme,
 } from "../types";
@@ -58,7 +62,7 @@ const SECTIONS: {
   {
     id: "general",
     label: "General",
-    description: "Polling frequency and launch at login.",
+    description: "Polling, startup, the review list and notifications.",
     icon: IconSettings,
   },
   {
@@ -72,6 +76,28 @@ const SECTIONS: {
     label: "About",
     description: "Version, paths and updates.",
     icon: IconInfo,
+  },
+];
+
+const NOTIFICATION_TOGGLES: {
+  key: keyof NotificationSettings;
+  title: string;
+  hint: string;
+}[] = [
+  {
+    key: "new_review_request",
+    title: "New review requests",
+    hint: "When a pull request starts waiting on your review",
+  },
+  {
+    key: "merge_ready",
+    title: "Ready to merge",
+    hint: "When one of your pull requests becomes mergeable",
+  },
+  {
+    key: "checks_failed",
+    title: "Failing checks",
+    hint: "When checks or pipelines on your pull request fail",
   },
 ];
 
@@ -93,10 +119,20 @@ export function Settings({ onSaved, onClose }: Props) {
   const [pollingText, setPollingText] = useState(String(DEFAULT_POLLING));
   const [theme, setTheme] = useState<Theme>("system");
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueSettings>(DEFAULT_REVIEW_QUEUE);
+  const [notifications, setNotifications] =
+    useState<NotificationSettings>(DEFAULT_NOTIFICATIONS);
   const [autostart, setAutostart] = useState(false);
-  // What is currently stored, to revert the live appearance preview on cancel and to know
-  // whether the autostart switch changed.
-  const saved = useRef({ theme: "system" as Theme, appearance: DEFAULT_APPEARANCE, autostart: false });
+  // What is currently stored, to revert the live preview on cancel and to know whether
+  // the autostart switch changed.
+  const saved = useRef({
+    polling: String(DEFAULT_POLLING),
+    theme: "system" as Theme,
+    appearance: DEFAULT_APPEARANCE,
+    reviewQueue: DEFAULT_REVIEW_QUEUE,
+    notifications: DEFAULT_NOTIFICATIONS,
+    autostart: false,
+  });
   const [saving, setSaving] = useState(false);
   const [validatingKey, setValidatingKey] = useState<string | null>(null);
   // Per-account messages, keyed by draft key; "" is the form-level message.
@@ -115,8 +151,13 @@ export function Settings({ onSaved, onClose }: Props) {
         setPollingText(String(config.polling_interval_secs));
         setTheme(config.theme);
         setAppearance(config.appearance);
+        setReviewQueue(config.review_queue);
+        setNotifications(config.notifications);
+        saved.current.polling = String(config.polling_interval_secs);
         saved.current.theme = config.theme;
         saved.current.appearance = config.appearance;
+        saved.current.reviewQueue = config.review_queue;
+        saved.current.notifications = config.notifications;
         applyAppearance(config.theme, config.appearance);
         setDrafts(configToDrafts(config));
       })
@@ -221,8 +262,11 @@ export function Settings({ onSaved, onClose }: Props) {
       savedTimer.current = null;
     }
     applyAppearance(saved.current.theme, saved.current.appearance);
+    setPollingText(saved.current.polling);
     setTheme(saved.current.theme);
     setAppearance(saved.current.appearance);
+    setReviewQueue(saved.current.reviewQueue);
+    setNotifications(saved.current.notifications);
     setAutostart(saved.current.autostart);
     onClose?.();
   }
@@ -232,10 +276,20 @@ export function Settings({ onSaved, onClose }: Props) {
     setMessage("", null);
     const polling = clampPolling(pollingText);
     try {
-      await saveConfig(polling, theme, appearance, draftsToAccounts(drafts));
+      await saveConfig(
+        polling,
+        theme,
+        appearance,
+        reviewQueue,
+        notifications,
+        draftsToAccounts(drafts)
+      );
       setPollingText(String(polling));
+      saved.current.polling = String(polling);
       saved.current.theme = theme;
       saved.current.appearance = appearance;
+      saved.current.reviewQueue = reviewQueue;
+      saved.current.notifications = notifications;
       if (autostart !== saved.current.autostart) {
         await (autostart ? enable() : disable());
         saved.current.autostart = autostart;
@@ -380,6 +434,7 @@ export function Settings({ onSaved, onClose }: Props) {
 
             {section === "general" && (
               <div className="settings-stack">
+                <p className="settings-group-title">Polling</p>
                 <div className="card row">
                   <div className="row-text">
                     <span className="row-title" id="polling-label">Polling interval</span>
@@ -399,6 +454,8 @@ export function Settings({ onSaved, onClose }: Props) {
                     <span>s</span>
                   </div>
                 </div>
+
+                <p className="settings-group-title">Startup</p>
                 <div className="card row">
                   <div className="row-text">
                     <span className="row-title">Launch at login</span>
@@ -413,6 +470,53 @@ export function Settings({ onSaved, onClose }: Props) {
                     onClick={() => setAutostart((v) => !v)}
                   />
                 </div>
+
+                <p className="settings-group-title">Review list</p>
+                <div className="card row">
+                  <div className="row-text">
+                    <span className="row-title">Show approved pull requests</span>
+                    <span className="hint">
+                      Keep the pull requests you already approved in the review tab. They never
+                      count towards the tray badge or new-request notifications.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={reviewQueue.show_approved}
+                    aria-label="Show approved pull requests"
+                    className={`switch${reviewQueue.show_approved ? " switch--on" : ""}`}
+                    onClick={() =>
+                      setReviewQueue((current) => ({
+                        ...current,
+                        show_approved: !current.show_approved,
+                      }))
+                    }
+                  />
+                </div>
+
+                <p className="settings-group-title">Notifications</p>
+                {NOTIFICATION_TOGGLES.map(({ key, title, hint }) => (
+                  <div className="card row" key={key}>
+                    <div className="row-text">
+                      <span className="row-title">{title}</span>
+                      <span className="hint">{hint}</span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifications[key]}
+                      aria-label={title}
+                      className={`switch${notifications[key] ? " switch--on" : ""}`}
+                      onClick={() =>
+                        setNotifications((current) => ({
+                          ...current,
+                          [key]: !current[key],
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             )}
 

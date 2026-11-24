@@ -132,6 +132,7 @@ impl Bitbucket {
         repo: &str,
         user_id: &str,
         role: Role,
+        include_approved: bool,
     ) -> AppResult<Vec<PullRequest>> {
         let mut raws = Vec::new();
         let mut use_q = self.use_q_filter.load(Ordering::Relaxed);
@@ -171,10 +172,7 @@ impl Bitbucket {
 
             for raw in page.values {
                 let wanted = match role {
-                    // Once approved there is nothing left to do, so it is not "pending review".
-                    Role::Reviewer => {
-                        !raw.is_approved_by(user_id) && (use_q || raw.is_reviewer(user_id))
-                    }
+                    Role::Reviewer => wants_review_pr(&raw, user_id, include_approved, use_q),
                     Role::Author => use_q || raw.is_author(user_id),
                 };
                 if wanted {
@@ -186,6 +184,7 @@ impl Bitbucket {
 
         Ok(stream::iter(raws)
             .map(|raw| async move {
+                let approved = role == Role::Reviewer && raw.is_approved_by(user_id);
                 let (ci_status, checks) = if role == Role::Author {
                     tokio::join!(
                         self.ci_status(repo, raw.id),
@@ -197,6 +196,7 @@ impl Bitbucket {
                 let merge =
                     (role == Role::Author).then(|| raw.merge_status(ci_status, checks.as_deref()));
                 let mut pr = raw.into_pr(&self.account_id, repo_id);
+                pr.approved_by_me = approved;
                 pr.ci_status = ci_status;
                 pr.merge = merge;
                 pr
@@ -223,6 +223,20 @@ impl Role {
     }
 }
 
+/// A review-queue PR stays while it is pending, or when the user asked to keep the ones they
+/// already approved. With the server-side `q` filter, Bitbucket already scoped the page.
+fn wants_review_pr(
+    raw: &RawPullRequest,
+    user_id: &str,
+    include_approved: bool,
+    use_q: bool,
+) -> bool {
+    let approved = raw.is_approved_by(user_id);
+    // With the server-side `q` filter the page is already scoped to the user.
+    let known = use_q || raw.is_reviewer(user_id) || approved;
+    known && (include_approved || !approved)
+}
+
 fn open_prs_url(workspace: &str, repo: &str) -> String {
     format!(
         "{API}/repositories/{workspace}/{repo}/pullrequests?state=OPEN&pagelen=50&fields={FIELDS}"
@@ -235,22 +249,34 @@ impl ReviewProvider for Bitbucket {
         self.user_id().await.map(str::to_string)
     }
 
-    async fn fetch_review_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
-        self.fetch_all(repos, Role::Reviewer).await
+    async fn fetch_review_prs(
+        &self,
+        repos: &[String],
+        include_approved: bool,
+    ) -> AppResult<FetchReport> {
+        self.fetch_all(repos, Role::Reviewer, include_approved)
+            .await
     }
 
     async fn fetch_my_prs(&self, repos: &[String]) -> AppResult<FetchReport> {
-        self.fetch_all(repos, Role::Author).await
+        self.fetch_all(repos, Role::Author, false).await
     }
 }
 
 impl Bitbucket {
-    async fn fetch_all(&self, repos: &[String], role: Role) -> AppResult<FetchReport> {
+    async fn fetch_all(
+        &self,
+        repos: &[String],
+        role: Role,
+        include_approved: bool,
+    ) -> AppResult<FetchReport> {
         let user_id = self.user_id().await?;
 
         let results = stream::iter(repos.iter().cloned())
             .map(|repo| async move {
-                let fetched = self.fetch_repo(&repo, user_id, role).await;
+                let fetched = self
+                    .fetch_repo(&repo, user_id, role, include_approved)
+                    .await;
                 (repo, fetched)
             })
             .buffered(MAX_CONCURRENCY)
@@ -615,6 +641,7 @@ impl RawPullRequest {
             comment_count: self.comment_count.unwrap_or(0),
             html_url: self.links.html.href,
             draft: self.draft,
+            approved_by_me: false,
             approvals,
             ci_status: None,
             merge: None,
@@ -659,6 +686,17 @@ mod tests {
         assert_eq!(pr.source_branch, "feat");
         assert_eq!(pr.author_avatar_url, "http://a/x.png");
         assert_eq!(pr.approvals, 1);
+    }
+
+    #[test]
+    fn keeps_approved_prs_only_when_asked() {
+        let approved = parse(PR);
+        assert!(!wants_review_pr(&approved, "me", false, false));
+        assert!(wants_review_pr(&approved, "me", true, false));
+        // The server-side `q` filter scopes the page to the user, but approved PRs still
+        // stay hidden unless the user asked for them.
+        assert!(!wants_review_pr(&approved, "me", false, true));
+        assert!(wants_review_pr(&approved, "me", true, true));
     }
 
     #[test]

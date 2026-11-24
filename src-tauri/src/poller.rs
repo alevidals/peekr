@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
 
 use crate::{
-    config::Account,
+    config::{Account, Notifications},
     domain::PullRequest,
     error::AppResult,
     notifier,
@@ -27,6 +27,8 @@ const MAX_BACKOFF: u32 = 3;
 struct ActiveAccount {
     account: Account,
     provider: Arc<dyn ReviewProvider>,
+    /// Config snapshot at build time: keep PRs the user already approved.
+    include_approved: bool,
 }
 
 impl ActiveAccount {
@@ -80,28 +82,42 @@ pub async fn run(app: AppHandle, mut rx: watch::Receiver<()>) {
         // refresh started this round.
         log::debug!("[poll] start: accounts={}", active.accounts.len());
 
-        let (results, mine_results) =
-            tokio::join!(
-                join_all(active.accounts.iter().map(|a| async move {
-                    (a, a.provider.fetch_review_prs(&a.account.repos).await)
-                })),
-                join_all(
-                    active.accounts.iter().map(|a| async move {
-                        (a, a.provider.fetch_my_prs(&a.account.repos).await)
-                    })
-                ),
-            );
+        let (results, mine_results) = tokio::join!(
+            join_all(active.accounts.iter().map(|a| async move {
+                (
+                    a,
+                    a.provider
+                        .fetch_review_prs(&a.account.repos, a.include_approved)
+                        .await,
+                )
+            })),
+            join_all(
+                active
+                    .accounts
+                    .iter()
+                    .map(|a| async move { (a, a.provider.fetch_my_prs(&a.account.repos).await) })
+            ),
+        );
         // Only a whole account failing means the service (or the network) is a problem worth
         // slowing down for; one broken repository must not stretch the interval.
         let failed_round =
             results.iter().any(|(_, r)| r.is_err()) || mine_results.iter().any(|(_, r)| r.is_err());
 
-        let mut errors =
-            poll_once(&app, results, &active.problems, &mut seeded, &mut notified).await;
+        let mut errors = poll_once(
+            &app,
+            results,
+            &active.problems,
+            &snapshot.config.notifications,
+            snapshot.config.review_queue.show_approved,
+            &mut seeded,
+            &mut notified,
+        )
+        .await;
         errors.extend(
             poll_mine(
                 &app,
                 mine_results,
+                &snapshot.config.notifications,
                 &mut seeded_mine,
                 &mut mine_notifications,
             )
@@ -135,6 +151,7 @@ fn build_active(client: &reqwest::Client, snapshot: &Snapshot) -> ActiveSet {
         set.accounts.push(ActiveAccount {
             account: account.clone(),
             provider: provider::build(client.clone(), account, token),
+            include_approved: snapshot.config.review_queue.show_approved,
         });
     }
     set
@@ -301,6 +318,8 @@ async fn poll_once(
     app: &AppHandle,
     results: Vec<(&ActiveAccount, AppResult<FetchReport>)>,
     problems: &[String],
+    notifications: &Notifications,
+    include_approved: bool,
     seeded: &mut HashSet<String>,
     notified: &mut HashSet<String>,
 ) -> Vec<String> {
@@ -311,7 +330,17 @@ async fn poll_once(
 
     let fresh = batch.prs.len();
     let mut prs = merge_keeping_stale(&current, batch.prs, |pr| batch.failures.covers(pr));
-    prs.sort_by(|a, b| b.created_on.cmp(&a.created_on));
+    // A provider that could not be reached keeps its stale PRs; drop the approved ones when
+    // the user turned them off so the setting holds even on a failed round.
+    if !include_approved {
+        prs.retain(|pr| !pr.approved_by_me);
+    }
+    // Anything still pending comes first; approved PRs are context, not work.
+    prs.sort_by(|a, b| {
+        a.approved_by_me
+            .cmp(&b.approved_by_me)
+            .then_with(|| b.created_on.cmp(&a.created_on))
+    });
 
     let added = notifier::newly_added(&current, &prs);
     if log::log_enabled!(log::Level::Debug) {
@@ -327,7 +356,12 @@ async fn poll_once(
     let to_notify: Vec<&PullRequest> = added
         .iter()
         .copied()
-        .filter(|pr| seeded.contains(&pr.account_id) && !notified.contains(&pr.key()))
+        .filter(|pr| {
+            notifications.new_review_request
+                && !pr.approved_by_me
+                && seeded.contains(&pr.account_id)
+                && !notified.contains(&pr.key())
+        })
         .collect();
     notified.extend(added.iter().map(|pr| pr.key()));
     seeded.extend(batch.succeeded.iter().cloned());
@@ -338,7 +372,8 @@ async fn poll_once(
     if !to_notify.is_empty() {
         notifier::notify_new_prs(app, &to_notify);
     }
-    log::info!("[peekr] poll complete: {} PRs pending review", prs.len());
+    let pending = prs.iter().filter(|pr| !pr.approved_by_me).count();
+    log::info!("[peekr] poll complete: {pending} PRs pending review");
     emit_and_badge(app, &prs);
 
     let mut errors = batch.errors;
@@ -351,6 +386,7 @@ async fn poll_once(
 async fn poll_mine(
     app: &AppHandle,
     results: Vec<(&ActiveAccount, AppResult<FetchReport>)>,
+    notifications: &Notifications,
     seeded: &mut HashSet<String>,
     mine_notifications: &mut notifier::MyPrNotificationState,
 ) -> Vec<String> {
@@ -368,6 +404,12 @@ async fn poll_mine(
         .filter(|(pr, _)| seeded.contains(&pr.account_id))
         .collect();
     let events = mine_notifications.filter(events);
+    // Mark the event as announced even when the user muted that kind, so enabling it later
+    // does not replay old transitions.
+    let events: Vec<_> = events
+        .into_iter()
+        .filter(|(_, event)| notifier::event_enabled(*event, notifications))
+        .collect();
     if log::log_enabled!(log::Level::Debug) {
         let diff = list_diff(&current, &prs);
         log::debug!(
@@ -417,7 +459,9 @@ async fn clear_prs(app: &AppHandle) {
 
 fn emit_and_badge(app: &AppHandle, prs: &[PullRequest]) {
     let _ = app.emit("prs-updated", prs);
-    tray::update_badge(app, prs.len() as u32);
+    // Approved PRs are context the user asked to keep; they are not waiting on anyone.
+    let pending = prs.iter().filter(|pr| !pr.approved_by_me).count() as u32;
+    tray::update_badge(app, pending);
 }
 
 /// Publishes every problem of a round once. Two accounts for the same workspace produce the
@@ -473,6 +517,7 @@ mod tests {
             comment_count: 0,
             html_url: String::new(),
             draft: false,
+            approved_by_me: false,
             approvals: 0,
             ci_status: None,
             merge: None,

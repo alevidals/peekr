@@ -102,6 +102,7 @@ export const PrItem = memo(function PrItem({ pr, index = 0, view }: Props) {
     pr.draft ? "draft" : null,
     `by ${pr.author_display_name}`,
     `${pr.source_branch} to ${pr.destination_branch}`,
+    pr.approved_by_me ? "approved by you" : null,
     verdict ? (verdict.note ? `${verdict.text}: ${verdict.note}` : verdict.text) : null,
     pr.ci_status ? ciLabel(pr.provider, pr.ci_status) : null,
     pr.approvals > 0
@@ -156,6 +157,13 @@ export const PrItem = memo(function PrItem({ pr, index = 0, view }: Props) {
                 {verdict.text}
               </span>
             )
+          ) : pr.approved_by_me ? (
+            <span
+              className="pr-item-status pr-item-status--good"
+              title={`Approved by you · ${pr.author_display_name}`}
+            >
+              Approved
+            </span>
           ) : (
             <span className="pr-item-author" title={pr.author_display_name}>
               {pr.author_display_name}

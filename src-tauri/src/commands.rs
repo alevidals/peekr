@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{
-    config::{self, Account, AppConfig, Appearance, Theme},
+    config::{self, Account, AppConfig, Appearance, Notifications, ReviewQueue, Theme},
     domain::{ProviderKind, PullRequest},
     error::{AppError, AppResult},
     provider, secrets,
@@ -35,7 +35,19 @@ pub struct ConfigResponse {
     pub polling_interval_secs: u64,
     pub theme: Theme,
     pub appearance: Appearance,
+    pub review_queue: ReviewQueue,
+    pub notifications: Notifications,
     pub accounts: Vec<AccountResponse>,
+}
+
+/// The non-account half of the settings form.
+#[derive(Deserialize)]
+pub struct PreferencesInput {
+    pub polling_interval_secs: u64,
+    pub theme: Theme,
+    pub appearance: Appearance,
+    pub review_queue: ReviewQueue,
+    pub notifications: Notifications,
 }
 
 /// An account as edited in the settings window.
@@ -68,6 +80,8 @@ pub fn get_config(store: State<'_, ConfigStore>) -> ConfigResponse {
         polling_interval_secs: snapshot.config.polling_interval_secs,
         theme: snapshot.config.theme,
         appearance: snapshot.config.appearance.clone(),
+        review_queue: snapshot.config.review_queue.clone(),
+        notifications: snapshot.config.notifications.clone(),
         accounts: snapshot
             .config
             .accounts
@@ -88,9 +102,7 @@ pub async fn save_config(
     app: AppHandle,
     store: State<'_, ConfigStore>,
     trigger: State<'_, PollTrigger>,
-    polling_interval_secs: u64,
-    theme: Theme,
-    appearance: Appearance,
+    preferences: PreferencesInput,
     accounts: Vec<AccountInput>,
 ) -> AppResult<()> {
     let previous = store.snapshot();
@@ -140,10 +152,12 @@ pub async fn save_config(
 
     let new_config = AppConfig {
         version: config::CONFIG_VERSION,
-        polling_interval_secs: config::clamp_interval(polling_interval_secs),
+        polling_interval_secs: config::clamp_interval(preferences.polling_interval_secs),
         accounts: new_accounts,
-        theme,
-        appearance: appearance.sanitized(),
+        theme: preferences.theme,
+        appearance: preferences.appearance.sanitized(),
+        review_queue: preferences.review_queue,
+        notifications: preferences.notifications,
     };
 
     // Tokens first: an orphan keychain entry is harmless, a config pointing at a missing
@@ -317,4 +331,37 @@ pub fn open_settings_window(app: AppHandle) -> AppResult<()> {
     win.show()?;
     win.set_focus()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preferences_deserialize_from_the_settings_payload() {
+        let prefs: PreferencesInput = serde_json::from_value(serde_json::json!({
+            "polling_interval_secs": 90,
+            "theme": "dark",
+            "appearance": {
+                "palette": "nord",
+                "accent": "#4f8cff",
+                "density": "compact",
+                "text_size": "large"
+            },
+            "review_queue": { "show_approved": true },
+            "notifications": {
+                "new_review_request": false,
+                "merge_ready": true,
+                "checks_failed": false
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(prefs.polling_interval_secs, 90);
+        assert_eq!(prefs.theme, Theme::Dark);
+        assert_eq!(prefs.appearance.palette, config::Palette::Nord);
+        assert!(prefs.review_queue.show_approved);
+        assert!(!prefs.notifications.new_review_request);
+        assert!(prefs.notifications.merge_ready);
+    }
 }

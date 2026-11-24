@@ -31,6 +31,8 @@ export interface PullRequest {
   comment_count: number;
   html_url: string;
   draft: boolean;
+  /** The authenticated user approved this PR (review queue only). */
+  approved_by_me: boolean;
   approvals: number;
   /** Absent when the PR has no checks or they could not be read. */
   ci_status: CiStatus | null;
@@ -75,10 +77,34 @@ export interface AccountConfig {
   has_token: boolean;
 }
 
+/** Which PRs the review tab keeps beyond the ones still waiting on the user. */
+export interface ReviewQueueSettings {
+  show_approved: boolean;
+}
+
+export const DEFAULT_REVIEW_QUEUE: ReviewQueueSettings = {
+  show_approved: false,
+};
+
+/** Desktop notifications the poller may send. */
+export interface NotificationSettings {
+  new_review_request: boolean;
+  merge_ready: boolean;
+  checks_failed: boolean;
+}
+
+export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
+  new_review_request: true,
+  merge_ready: true,
+  checks_failed: true,
+};
+
 export interface Config {
   polling_interval_secs: number;
   theme: Theme;
   appearance: Appearance;
+  review_queue: ReviewQueueSettings;
+  notifications: NotificationSettings;
   accounts: AccountConfig[];
 }
 

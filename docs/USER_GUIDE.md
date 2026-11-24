@@ -111,15 +111,19 @@ The first tab lists open PRs where you are a requested reviewer:
   requests made to teams you belong to. This is a **pending review request**, not
   an approval filter: submitting any review clears it, so the PR leaves the list
   after **Approve** and after **Request changes**. The ball is then with the
-  author; it returns when someone requests your review again. If you want to
-  follow PRs you reviewed, GitHub has the separate `reviewed-by:@me` and
-  `review:changes_requested` search qualifiers, which peekr does not use yet.
-- **Bitbucket** lists open PRs where you are a reviewer and hides the ones you
-  have already approved. A PR where you requested changes stays visible, because
-  Bitbucket keeps you as a reviewer.
+  author; it returns when someone requests your review again. With **General →
+  Show approved pull requests** enabled, peekr also searches
+  `is:pr is:open reviewed-by:@me review:approved` and keeps only PRs whose latest
+  review by you is an approval. A PR that is pending again stays pending even if
+  an older review was an approval.
+- **Bitbucket** lists open PRs where you are a reviewer and, by default, hides
+  the ones you have already approved. A PR where you requested changes stays
+  visible, because Bitbucket keeps you as a reviewer. Enable **General →
+  Show approved pull requests** to keep your approvals in the list.
 
 Rows show the title, author, source and destination branch, comment count,
-approval count and CI state. Clicking a row opens the PR in your browser.
+approval count and CI state. Approved rows say **Approved** instead of the author
+and sit after the pending ones. Clicking a row opens the PR in your browser.
 
 The repo header groups the list by account and repository. When more than one
 provider is configured, each group also shows its provider.
@@ -178,6 +182,10 @@ Clicking a notification opens that PR. On macOS, a packaged build is attributed
 to peekr; a development build is attributed to Terminal because it has no bundle
 of its own.
 
+Each notification kind can be turned off in **Settings → General →
+Notifications**. Turning one off keeps the event out of your desktop but does not
+replay it if you turn it back on later.
+
 ## Settings
 
 Settings is a normal window with a Dock or taskbar entry while it is open. When
@@ -192,8 +200,26 @@ it instead. Cancelling the confirmation keeps the account untouched.
 
 ### General
 
+**Polling**
+
 - **Polling interval**: 30 to 3600 seconds. The default is 120 seconds.
+
+**Startup**
+
 - **Launch at login**: registers peekr with the OS autostart mechanism.
+
+**Review list**
+
+- **Show approved pull requests**: keeps the PRs you already approved in the
+  review tab. They are marked **Approved**, sorted after the pending ones, and
+  never count towards the tray badge or a "new review request" notification.
+  Off by default.
+
+**Notifications**
+
+- **New review requests**: a PR starts waiting on your review. On by default.
+- **Ready to merge**: one of your PRs becomes mergeable. On by default.
+- **Failing checks**: checks or pipelines on one of your PRs fail. On by default.
 
 If several polls fail in a row, peekr backs off up to three doublings of the
 configured interval, so a service that is down or throttling is not hammered.
