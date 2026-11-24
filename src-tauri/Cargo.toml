@@ -73,7 +73,7 @@ mac-notification-sys = "0.6"
 notify-rust = "4"
 # Only the non-macOS tray icon is drawn at runtime; macOS uses a template image.
 image = { version = "0.25", default-features = false, features = ["png"] }
-imageproc = "0.25"
+imageproc = { version = "0.27", default-features = false }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
