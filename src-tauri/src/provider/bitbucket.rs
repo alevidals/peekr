@@ -417,6 +417,10 @@ impl MergeCheck {
             "git_mergeability_check" if self.reason.as_deref() == Some("conflicts") => {
                 (MergeState::Conflicts, "Merge conflicts".to_string())
             }
+            // The kind names the rule ("no changes requested"), so the fallback would read
+            // as the opposite of the blocker. Both sources describe the same condition, and
+            // assess_checks dedupes the message with the participant-level blocker.
+            "no_changes_requested" => (MergeState::Blocked, "Changes requested".to_string()),
             "minimum_approvals" => (
                 MergeState::Waiting,
                 format!(
@@ -763,5 +767,18 @@ mod tests {
             assess_checks(true, false, 0, &checks.values).state,
             MergeState::Draft
         );
+    }
+
+    #[test]
+    fn does_not_double_count_changes_requested() {
+        let checks: PagedResponse<MergeCheck> = serde_json::from_str(
+            r#"{"values":[{"type":"standard_merge_check","status":"FAILED","blocking":true,
+                "check":{"kind":"no_changes_requested"}}]}"#,
+        )
+        .unwrap();
+        // The check kind names the rule; the blocker must read as the reason it failed.
+        let status = assess_checks(false, true, 0, &checks.values);
+        assert_eq!(status.state, MergeState::Blocked);
+        assert_eq!(status.blockers, vec!["Changes requested"]);
     }
 }
